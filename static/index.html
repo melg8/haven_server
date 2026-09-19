@@ -6,156 +6,441 @@
 <title>haven_server — RTS Chess</title>
 <style>
   :root {
-    --wood-light: #f0d9b5;
-    --wood-dark: #b58863;
-    --ink: #2b241c;
-    --panel: #faf6ee;
-    --accent: #2e9e5b;
-    --danger: #d23c3c;
     --tile: 64px;
+    --ink: #ece1cb;
+    --ink-dim: #a4967d;
+    --panel: rgba(30, 25, 21, 0.88);
+    --panel-brd: rgba(238, 220, 186, 0.13);
+    --wood-light: #ecd8ae;
+    --wood-dark: #b08054;
+    --accent: #4cc06e;
+    --accent-dim: rgba(76, 192, 110, 0.45);
+    --danger: #e0564f;
+    --gold: #e2b45f;
+    --font-ui: "Segoe UI", "Trebuchet MS", "DejaVu Sans", Verdana, sans-serif;
+    --font-title: Georgia, "DejaVu Serif", "Times New Roman", serif;
+    --font-mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: Georgia, 'Times New Roman', serif;
-    background: #efe8db; color: var(--ink);
-    display: flex; min-height: 100vh; flex-direction: column;
+    margin: 0; font-family: var(--font-ui); color: var(--ink);
+    background:
+      radial-gradient(1100px 700px at 50% 36%, #251c1c 0%, #191320 55%, #0d0a12 100%);
+    min-height: 100vh; display: flex; flex-direction: column;
+    overflow-x: hidden;
   }
-  header {
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 10px 18px; background: #3a3129; color: #f3ede2;
-  }
-  header h1 { font-size: 18px; margin: 0; font-weight: normal; letter-spacing: 0.5px; }
-  header .badge {
-    font-family: monospace; font-size: 12px; padding: 3px 8px; border-radius: 4px;
-    background: #5a4e41; color: #ffe9c2;
-  }
-  header .side-white { background: #e8e2d5; color: #3a3129; }
-  header .side-black { background: #14100c; color: #e8e2d5; }
-  header input {
-    font-family: monospace; font-size: 13px; padding: 5px 8px; border-radius: 4px;
-    border: 1px solid #6b5d4e; background: #2c2620; color: #f3ede2; width: 180px;
-  }
-  button {
-    font-family: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer;
-    border-radius: 4px; border: 1px solid #6b5d4e; background: #f3ede2; color: #3a3129;
-  }
-  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
-  button:disabled { opacity: 0.45; cursor: default; }
-  main { display: flex; flex: 1; gap: 18px; padding: 18px; flex-wrap: wrap; }
 
-  #boardwrap { flex: 0 0 auto; position: relative; }
+  /* ------------------------------- header -------------------------------- */
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 18px; position: sticky; top: 0; z-index: 20;
+    background: rgba(15, 12, 10, 0.82); backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(238, 220, 186, 0.08);
+  }
+  header h1 {
+    font-family: var(--font-title); font-size: 19px; margin: 0 8px 0 0;
+    font-weight: 400; letter-spacing: 0.5px; color: #f0e6d2;
+  }
+  header h1 span { opacity: 0.5; font-size: 13px; font-family: var(--font-ui); }
+  .badge {
+    font-family: var(--font-mono); font-size: 11.5px; padding: 4px 10px;
+    border-radius: 999px; color: var(--ink-dim);
+    background: rgba(238, 220, 186, 0.07); border: 1px solid rgba(238, 220, 186, 0.14);
+    white-space: nowrap;
+  }
+  .badge::before {
+    content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    margin-right: 6px; background: #6d6255; vertical-align: 1px;
+  }
+  .badge.connecting::before { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+  .badge.connected::before  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .badge.side-white { background: #efe7d4; color: #2c2419; border-color: #efe7d4; }
+  .badge.side-white::before { background: #2c2419; box-shadow: none; }
+  .badge.side-black { background: #191419; color: #e8e2d5; border-color: #3a3239; }
+  .badge.side-black::before { background: #e8e2d5; box-shadow: none; }
+  header input {
+    font-family: var(--font-mono); font-size: 12.5px; padding: 7px 10px;
+    border-radius: 8px; width: 190px;
+    border: 1px solid rgba(238, 220, 186, 0.18);
+    background: rgba(0, 0, 0, 0.35); color: var(--ink);
+  }
+  header input:focus { outline: none; border-color: var(--accent-dim); }
+  button {
+    font-family: var(--font-ui); font-size: 13px; padding: 8px 14px; cursor: pointer;
+    border-radius: 8px; border: 1px solid rgba(238, 220, 186, 0.2);
+    background: rgba(238, 220, 186, 0.1); color: var(--ink);
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button:hover:not(:disabled) { background: rgba(238, 220, 186, 0.18); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button.primary {
+    background: linear-gradient(180deg, #52c877, #359a58);
+    border-color: #2c8a4d; color: #08130c; font-weight: 600;
+    box-shadow: 0 4px 14px rgba(76, 192, 110, 0.28);
+  }
+  button.primary:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(76, 192, 110, 0.42); }
+  button:disabled { opacity: 0.4; cursor: default; }
+
+  /* -------------------------------- layout ------------------------------- */
+  main {
+    flex: 1; display: flex; justify-content: center; align-items: flex-start;
+    gap: 22px; padding: 16px 20px 26px;
+  }
+  #stage { display: flex; flex-direction: column; gap: 10px; width: fit-content; }
+  aside { width: 300px; flex: 0 0 300px; display: flex; flex-direction: column; gap: 12px; }
+  @media (max-width: 1060px) {
+    main { flex-wrap: wrap; }
+    aside { flex: 1 1 100%; width: auto; }
+    #log { max-height: 240px; }
+  }
+
+  /* ------------------------------- plaques ------------------------------- */
+  .plaque {
+    display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    background: var(--panel); border: 1px solid var(--panel-brd); border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  .plaque .avatar {
+    width: 42px; height: 42px; flex: 0 0 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(0, 0, 0, 0.45);
+  }
+  .plaque .avatar svg { width: 34px; height: 34px; }
+  .plaque.white .avatar { background: radial-gradient(circle at 35% 30%, #f7efdc, #cdbb97); }
+  .plaque.black .avatar { background: radial-gradient(circle at 35% 30%, #5c5158, #2e2830); }
+  .plaque .who { flex: 1; min-width: 0; }
+  .plaque .name { font-family: var(--font-title); font-size: 15.5px; letter-spacing: 0.4px; }
+  .plaque .sub { font-family: var(--font-mono); font-size: 11px; color: var(--ink-dim); margin-top: 1px; }
+  .plaque .hpbar {
+    height: 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.45);
+    overflow: hidden; margin: 4px 0 3px;
+  }
+  .plaque .hpbar > div {
+    height: 100%; border-radius: 3px; width: 100%;
+    background: linear-gradient(90deg, #3fae62, #6fd88a); transition: width 0.4s ease;
+  }
+  .plaque.black .hpbar > div { background: linear-gradient(90deg, #b05248, #d67f6f); }
+  .plaque .tag {
+    display: none; font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px;
+    color: var(--accent); border: 1px solid var(--accent-dim);
+    border-radius: 999px; padding: 2px 8px;
+  }
+  .plaque.self { border-color: var(--accent-dim); }
+  .plaque.self .tag { display: block; }
+
+  /* -------------------------------- board -------------------------------- */
+  #boardFrame {
+    position: relative; padding: 12px; border-radius: 12px;
+    background: linear-gradient(160deg, #4a3520, #2c1f12 60%, #241a10);
+    border: 1px solid #17110b;
+    box-shadow:
+      0 26px 60px rgba(0, 0, 0, 0.6), 0 4px 14px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 230, 180, 0.18), inset 0 -2px 8px rgba(0, 0, 0, 0.5);
+  }
+  #boardFrame::after {
+    content: ""; position: absolute; inset: 6px; border-radius: 8px;
+    border: 1px solid rgba(226, 180, 95, 0.32); pointer-events: none;
+  }
   #board {
-    position: relative;
-    display: grid; grid-template-columns: repeat(8, var(--tile)); grid-template-rows: repeat(8, var(--tile));
-    border: 6px solid #5a4632; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    user-select: none;
+    position: relative; display: grid; user-select: none; overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 10px 26px rgba(0, 0, 0, 0.45);
   }
   .tile {
     position: relative; width: var(--tile); height: var(--tile);
     display: flex; align-items: center; justify-content: center;
   }
-  .tile.light { background: var(--wood-light); }
-  .tile.dark  { background: var(--wood-dark); }
-  .tile.file-label, .tile.rank-label {
-    position: absolute; font-size: 10px; font-family: monospace; opacity: 0.55;
-  }
+  .tile.light { background: linear-gradient(135deg, #f0ddb4, #e2c99e); box-shadow: inset 0 0 12px rgba(120, 80, 30, 0.12); }
+  .tile.dark  { background: linear-gradient(135deg, #b5885c, #a0744a); box-shadow: inset 0 0 14px rgba(60, 30, 5, 0.2); }
+  .tile.file-label, .tile.rank-label { position: absolute; font-family: var(--font-mono); }
   .tile.file-label { bottom: 2px; right: 4px; }
   .tile.rank-label { top: 2px; left: 4px; }
+  .tile .coord {
+    font-size: max(8px, calc(var(--tile) * 0.13)); font-weight: 700; opacity: 0.55; color: #4d3a22;
+  }
   /* Clicks always land on the persistent tile layer — pieces are painted on
      top but ignore the mouse. This is what makes selection 100% reliable. */
   .tile.own, .tile.move-target { cursor: pointer; }
-  .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
-  .tile.move-target::after {
-    content: ""; position: absolute; width: 20px; height: 20px; border-radius: 50%;
-    background: rgba(46, 158, 91, 0.5); z-index: 4; transition: transform 0.12s ease;
+  .tile.own:hover { filter: brightness(1.08); }
+  .tile.selected {
+    outline: 3px solid var(--accent); outline-offset: -3px;
+    animation: selPulse 1.5s ease-in-out infinite;
   }
-  .tile.move-target:hover::after { transform: scale(1.4); background: rgba(46, 158, 91, 0.85); }
-  .tile.locked { animation: lockpulse 1s ease-in-out infinite; }
+  @keyframes selPulse {
+    0%, 100% { box-shadow: inset 0 0 0 0 rgba(76, 192, 110, 0); }
+    50% { box-shadow: inset 0 0 18px 2px rgba(76, 192, 110, 0.4); }
+  }
+  .tile.move-target::after {
+    content: ""; position: absolute; width: 27%; height: 27%; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #82e69e, #35a95c 72%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+    z-index: 4; transition: transform 0.12s ease;
+    animation: dotPulse 1.6s ease-in-out infinite;
+  }
+  .tile.move-target:hover::after { transform: scale(1.45); animation: none; opacity: 1; }
+  @keyframes dotPulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.55; } }
+  .tile.locked { animation: lockpulse 0.9s ease-in-out infinite; }
   @keyframes lockpulse {
-    0%, 100% { box-shadow: inset 0 0 0 3px rgba(210, 60, 60, 0.55); }
-    50% { box-shadow: inset 0 0 0 7px rgba(210, 60, 60, 0.95); }
+    0%, 100% { box-shadow: inset 0 0 0 3px rgba(224, 86, 79, 0.55); }
+    50% { box-shadow: inset 0 0 0 8px rgba(224, 86, 79, 0.95); }
   }
 
-  /* Piece layer: one absolutely-positioned element per unit, keyed by unit id
-     and updated in place. The outer div owns the position (transition = glide
-     animation); the inner .body owns the glyph (and the death animation, so
-     the two transforms never fight each other). */
+  /* ------------------------------- pieces --------------------------------
+     One absolutely-positioned element per unit, keyed by unit id and updated
+     in place. The outer div owns the position (transition = glide); the inner
+     .body owns the idle bob; the svg inside owns action effects (hop, hit…). */
   .piece {
     position: absolute; left: 0; top: 0; width: var(--tile); height: var(--tile);
     pointer-events: none; z-index: 2;
-    transition: transform 0.18s ease; will-change: transform;
+    transition: transform 0.24s cubic-bezier(0.34, 1.35, 0.44, 1);
+    will-change: transform;
   }
   .piece .body {
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 44px; line-height: 1;
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    animation: idleBob var(--bob-dur, 3s) ease-in-out var(--bob-delay, 0s) infinite alternate;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
   }
-  .piece.white .body { color: #ffffff; text-shadow: 0 0 2px #2b241c, 0 1px 1px #2b241c, -1px 0 0 #2b241c, 1px 0 0 #2b241c; }
-  .piece.black .body { color: #1c1712; text-shadow: 0 0 2px #f3ede2; }
-  .piece.artillery .body { font-size: 34px; }
-  .piece.ghost { opacity: 0.4; z-index: 1; }
-  .piece.sel .body { filter: drop-shadow(0 0 7px var(--accent)); }
+  @keyframes idleBob {
+    from { transform: translateY(0) rotate(-1deg); }
+    to   { transform: translateY(calc(var(--tile) * -0.045)) rotate(1deg); }
+  }
+  .piece svg { width: 100%; height: 100%; display: block; }
+  .piece .eye {
+    transform-box: fill-box; transform-origin: center;
+    animation: blink 4.4s ease-in-out var(--bob-delay, 0s) infinite;
+  }
+  @keyframes blink { 0%, 91%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.08); } 97% { transform: scaleY(1); } }
+  .piece .turret {
+    transform-box: fill-box; transform-origin: 50% 88%;
+    animation: turretScan var(--bob-dur, 4.2s) ease-in-out var(--bob-delay, 0s) infinite alternate;
+  }
+  @keyframes turretScan { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+  /* action effects live on the svg so they compose with the body idle bob */
+  .piece.spawn svg { animation: spawnfx 0.42s cubic-bezier(0.3, 1.5, 0.5, 1) backwards; animation-delay: var(--spawn-delay, 0s); }
+  @keyframes spawnfx { from { transform: translateY(-45%) scale(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+  .piece.hop svg { animation: hopfx 0.36s cubic-bezier(0.3, 0.6, 0.4, 1); }
+  @keyframes hopfx {
+    0% { transform: translateY(0) scale(1); }
+    35% { transform: translateY(-26%) scale(0.96, 1.05); }
+    70% { transform: translateY(2%) scale(1.05, 0.95); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  .piece.lunge svg { animation: lungefx 0.38s ease-out; }
+  @keyframes lungefx {
+    0% { transform: translate(0, 0); }
+    40% { transform: translate(calc(var(--lx, 0) * 24%), calc(var(--ly, 0) * 24%)) scale(1.06); }
+    100% { transform: translate(0, 0); }
+  }
+  .piece.hit svg { animation: hitfx 0.34s ease-out; }
+  @keyframes hitfx {
+    0% { transform: translate(0, 0); }
+    25% {
+      transform: translate(calc(var(--lx, 0) * -16%), calc(var(--ly, 0) * -16%));
+      filter: saturate(2.2) brightness(1.4) hue-rotate(-20deg);
+    }
+    60% { transform: translate(calc(var(--lx, 0) * 6%), calc(var(--ly, 0) * 6%)); }
+    100% { transform: translate(0, 0); filter: none; }
+  }
+  .piece.recoil svg { animation: recoilfx 0.42s ease-out; }
+  @keyframes recoilfx {
+    0% { transform: translate(0, 0); }
+    30% { transform: translate(calc(var(--lx, 0) * -20%), calc(var(--ly, 0) * -20%)) rotate(calc(var(--lx, 0) * -5deg)); }
+    100% { transform: none; }
+  }
+  .piece.deny svg { animation: denyfx 0.3s ease; }
+  @keyframes denyfx {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6%) rotate(-3deg); }
+    75% { transform: translateX(6%) rotate(3deg); }
+  }
+  .piece.bounce svg { animation: bouncefx 0.55s cubic-bezier(0.3, 1.6, 0.5, 1); }
+  @keyframes bouncefx {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.25, 0.85) translateY(10%); }
+    55% { transform: scale(0.9, 1.15) translateY(-18%); }
+    75% { transform: scale(1.06, 0.96) translateY(4%); }
+    100% { transform: scale(1); }
+  }
+  .piece.winding .body { animation: windfx 0.5s ease-in-out infinite; }
+  @keyframes windfx {
+    0%, 100% { transform: rotate(0); }
+    25% { transform: rotate(-2.4deg) translateY(2%); }
+    75% { transform: rotate(2.4deg) translateY(2%); }
+  }
+  .piece.sel .body {
+    filter: drop-shadow(0 0 9px var(--accent-dim)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
+  }
   .piece .body.dying { animation: die 0.6s ease-out forwards; }
   @keyframes die {
-    0% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.6) rotate(20deg); }
+    0% { opacity: 1; transform: scale(1) rotate(0); }
+    100% { opacity: 0; transform: scale(1.5) rotate(24deg) translateY(-6%); }
   }
   .hp {
     position: absolute; bottom: 3px; left: 0; right: 0;
     display: flex; gap: 2px; justify-content: center; z-index: 3;
   }
-  .hp .pip { width: 7px; height: 7px; border-radius: 50%; background: #43b02a; border: 1px solid rgba(0,0,0,0.4); }
-  .hp .pip.off { background: #7c7268; }
-  .fx-flash {
-    position: absolute; inset: 0; z-index: 5; pointer-events: none;
-    animation: flashfx 0.45s ease-out forwards;
+  .hp .pip {
+    width: max(6px, calc(var(--tile) * 0.11)); height: max(6px, calc(var(--tile) * 0.11));
+    border-radius: 50%; background: #43b02a; border: 1px solid rgba(0, 0, 0, 0.45);
+    transition: background 0.2s ease;
   }
-  @keyframes flashfx { 0% { background: #ff6b5e; } 100% { background: transparent; } }
-  .fx-flash.fire { animation-name: firefx; }
-  @keyframes firefx { 0% { background: #ffd24d; } 100% { background: transparent; } }
+  .hp .pip.off { background: #6f665b; }
+  /* ghost = queued-move preview at the destination tile */
+  .piece.ghost { opacity: 0.45; z-index: 1; }
+  .piece.ghost .body { animation: ghostBob 1.2s ease-in-out infinite alternate; }
+  @keyframes ghostBob {
+    from { transform: translateY(0); } to { transform: translateY(calc(var(--tile) * -0.06)); }
+  }
+  .piece.ghost::before {
+    content: ""; position: absolute; inset: 14%; border-radius: 50%;
+    border: 2px dashed rgba(226, 180, 95, 0.55);
+    animation: ghostRing 1.6s linear infinite;
+  }
+  @keyframes ghostRing { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
-  aside { flex: 1 1 320px; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
+  /* ------------------------------ fx overlays ----------------------------- */
+  .fx-flash { position: absolute; inset: 0; z-index: 5; pointer-events: none; animation: flashDmg 0.45s ease-out forwards; }
+  @keyframes flashDmg {
+    0% { background: rgba(255, 107, 94, 0.7); box-shadow: 0 0 18px 4px rgba(255, 107, 94, 0.5); }
+    100% { background: transparent; box-shadow: none; }
+  }
+  .fx-flash.fire { animation-name: flashFire; }
+  @keyframes flashFire {
+    0% { background: rgba(255, 210, 77, 0.8); box-shadow: 0 0 22px 7px rgba(255, 200, 60, 0.55); }
+    100% { background: transparent; box-shadow: none; }
+  }
+  .fx-flash.dust { animation-name: flashDust; }
+  @keyframes flashDust {
+    0% { background: rgba(255, 246, 224, 0.5); box-shadow: 0 0 12px 2px rgba(255, 246, 224, 0.35); }
+    100% { background: transparent; box-shadow: none; }
+  }
+  .fx-beam {
+    position: absolute; height: 5px; z-index: 6; pointer-events: none;
+    transform-origin: 0 50%; transform: rotate(var(--rot, 0rad));
+    background: linear-gradient(90deg, rgba(255, 220, 120, 0.05), rgba(255, 220, 120, 0.95) 30%, #fff 55%, rgba(255, 200, 80, 0.9) 75%, rgba(255, 180, 60, 0.05));
+    border-radius: 3px; filter: drop-shadow(0 0 6px rgba(255, 200, 80, 0.8));
+    animation: beamfx 0.5s ease-out forwards;
+  }
+  @keyframes beamfx {
+    0% { opacity: 0; transform: rotate(var(--rot, 0rad)) scaleX(0); }
+    15% { opacity: 1; }
+    100% { opacity: 0; transform: rotate(var(--rot, 0rad)) scaleX(1); }
+  }
+  .fx-burst {
+    position: absolute; inset: 12%; border-radius: 50%; z-index: 6; pointer-events: none;
+    border: 3px solid var(--gold); animation: burstfx 0.6s ease-out forwards;
+  }
+  @keyframes burstfx {
+    0% { transform: scale(0.3); opacity: 0.95; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+
+  /* -------------------------------- panels -------------------------------- */
   .panel {
-    background: var(--panel); border: 1px solid #d8cdb9; border-radius: 6px; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--panel-brd);
+    border-radius: 12px; padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   }
-  .panel h2 { margin: 0 0 8px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; }
-  #stats { font-family: monospace; font-size: 13px; line-height: 1.7; }
-  #upgradeBtn { background: #b58863; color: #fff; border-color: #8a6647; width: 100%; margin-top: 6px; }
+  .panel h2 {
+    margin: 0 0 8px; font-size: 11px; letter-spacing: 1.6px;
+    text-transform: uppercase; color: var(--ink-dim); font-weight: 600;
+  }
+  #stats { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.8; }
+  #stats b { color: #fff; font-weight: 600; }
+  #upgradeBtn {
+    background: linear-gradient(180deg, #caa26a, #a97f4a); border-color: #8a6637;
+    color: #1d1408; font-weight: 600; width: 100%; margin-top: 8px;
+    box-shadow: 0 3px 12px rgba(202, 162, 106, 0.25);
+  }
   #log {
-    flex: 1; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;
-    line-height: 1.55; max-height: 420px; min-height: 200px; white-space: pre-wrap;
+    flex: 1; overflow-y: auto; font-family: var(--font-mono); font-size: 11.5px;
+    line-height: 1.6; min-height: 160px; max-height: 330px; white-space: pre-wrap;
+    scrollbar-width: thin; scrollbar-color: rgba(238, 220, 186, 0.25) transparent;
   }
-  #log .ev-move { color: #2b6e46; }
-  #log .ev-combat { color: #a02c2c; }
-  #log .ev-info { color: #57503f; }
-  #log .ev-sys { color: #7a6f5d; font-style: italic; }
-  #victory {
-    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-    background: rgba(30, 24, 16, 0.72); border-radius: 4px; z-index: 10;
+  #log .ev-move { color: #7fd89b; }
+  #log .ev-combat { color: #f0908a; }
+  #log .ev-info { color: #cdbfa4; }
+  #log .ev-sys { color: #8d8069; font-style: italic; }
+  #hint { font-size: 12.5px; opacity: 0.85; line-height: 1.55; color: var(--ink-dim); }
+  #hint b { color: var(--ink); }
+
+  /* -------------------------------- modals -------------------------------- */
+  .modal {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(10, 8, 14, 0.66); backdrop-filter: blur(5px);
   }
-  #victory .card {
-    background: var(--panel); padding: 28px 40px; border-radius: 8px; text-align: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  .modal.open { display: flex; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal .card {
+    width: min(480px, 92vw); text-align: center;
+    background: linear-gradient(170deg, #261e18, #1a1410);
+    border: 1px solid rgba(226, 180, 95, 0.3); border-radius: 14px;
+    padding: 26px 28px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+    animation: popIn 0.35s cubic-bezier(0.3, 1.4, 0.5, 1);
   }
-  #victory h2 { margin: 0 0 6px; font-size: 24px; }
-  #hint { font-size: 13px; opacity: 0.75; line-height: 1.5; }
+  @keyframes popIn { from { transform: scale(0.85) translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal h2 {
+    font-family: var(--font-title); margin: 0 0 6px; font-size: 23px;
+    color: #f2e7cf; font-weight: 400;
+  }
+  .modal p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: var(--ink-dim); }
+  .fieldlabel {
+    font-size: 10px; letter-spacing: 1.8px; color: var(--ink-dim);
+    text-align: left; margin: 12px 2px 5px; font-weight: 600;
+  }
+  .codebox {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0, 0, 0, 0.45); border: 1px dashed rgba(226, 180, 95, 0.4);
+    border-radius: 10px; padding: 11px 14px;
+  }
+  .codebox code {
+    flex: 1; font-family: var(--font-mono); font-size: 16px; letter-spacing: 0.5px;
+    color: var(--gold); word-break: break-all; text-align: left; user-select: all;
+  }
+  .codebox.small code { font-size: 12.5px; color: #d8c9a5; }
+  .copyBtn { flex: 0 0 auto; font-size: 12px; padding: 7px 11px; }
+  .waiting {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin: 16px 0 4px; color: var(--ink-dim); font-size: 13px;
+  }
+  .waiting .dots span {
+    display: inline-block; width: 8px; height: 8px; margin: 0 3px; border-radius: 50%;
+    background: var(--accent); animation: waitingBounce 1.2s ease-in-out infinite;
+  }
+  .waiting .dots span:nth-child(2) { animation-delay: 0.15s; }
+  .waiting .dots span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes waitingBounce {
+    0%, 100% { transform: translateY(0); opacity: 0.4; }
+    50% { transform: translateY(-6px); opacity: 1; }
+  }
+  .ghostbtn {
+    margin-top: 12px; background: transparent; border-color: transparent;
+    color: var(--ink-dim); text-decoration: underline; font-size: 12.5px;
+  }
+  .ghostbtn:hover { color: var(--ink); background: transparent; }
+  #vIcon { margin: 2px 0 6px; }
+  #vReason { text-transform: capitalize; }
 </style>
 </head>
 <body>
 <header>
-  <h1>haven_server <span style="opacity:.55">RTS Chess</span></h1>
-  <input id="matchInput" placeholder="match id (to join)">
+  <h1>haven_server <span>RTS Chess</span></h1>
+  <input id="matchInput" placeholder="match id (to join)" spellcheck="false">
   <button class="primary" id="createBtn">Create match</button>
   <button id="joinBtn">Join match</button>
   <span class="badge" id="wsStatus">disconnected</span>
-  <span class="badge" id="sideBadge">—</span>
-  <span class="badge" id="latency">latency —</span>
+  <span class="badge" id="sideBadge">spectator</span>
+  <span class="badge" id="latency">— ms</span>
 </header>
 
 <main>
-  <div id="boardwrap">
-    <div id="board"></div>
-    <div id="victory"><div class="card"><h2 id="vTitle"></h2><p id="vReason"></p><button onclick="location.reload()">New game</button></div></div>
+  <div id="stage">
+    <div class="plaque" id="plaqueTop"></div>
+    <div id="boardFrame">
+      <div id="board"></div>
+    </div>
+    <div class="plaque" id="plaqueBottom"></div>
   </div>
   <aside>
     <div class="panel" id="statsPanel">
@@ -163,19 +448,53 @@
       <div id="stats">not connected</div>
       <button id="upgradeBtn" disabled>Upgrade to artillery</button>
     </div>
-    <div class="panel" style="flex:1; display:flex; flex-direction:column;">
-      <h2>Event log</h2>
+    <div class="panel" style="flex:1; display:flex; flex-direction:column; min-height:220px;">
+      <h2>Battle log</h2>
       <div id="log"></div>
     </div>
     <div class="panel">
-      <div id="hint">Create a match in this tab (you play white), then open a second tab,
-      paste the match id and join — the match auto-starts. Click one of your pawns to
-      select it (green dots = possible steps), click a dot to queue a move (it resolves
-      on a probabilistic dice roll), right click deselects. Pawns that touch enemies
+      <h2>How to play</h2>
+      <div id="hint"><b>Create a match</b> and share the invite ID or link with your friend —
+      the battle starts the moment they join. Click one of your soldiers to select it
+      (green dots = possible steps), click a dot to queue a move; it resolves on a
+      probabilistic dice roll every tick. Right-click deselects. Pawns that touch enemies
       lock into melee on their own; reach the far rank to upgrade into artillery.</div>
     </div>
   </aside>
 </main>
+
+<!-- blocking invite popup: shown right after "Create match" -->
+<div class="modal" id="inviteModal">
+  <div class="card">
+    <h2>Match created</h2>
+    <p>Share this match ID with your friend —<br>as soon as they join, the battle starts automatically.</p>
+    <div class="fieldlabel">MATCH ID</div>
+    <div class="codebox">
+      <code id="inviteId"></code>
+      <button class="copyBtn" id="copyIdBtn">Copy ID</button>
+    </div>
+    <div class="fieldlabel">QUICK INVITE LINK</div>
+    <div class="codebox small">
+      <code id="inviteLink"></code>
+      <button class="copyBtn" id="copyLinkBtn">Copy link</button>
+    </div>
+    <div class="waiting">
+      <span class="dots"><span></span><span></span><span></span></span>
+      <span id="inviteStatus">waiting for opponent…</span>
+    </div>
+    <button class="ghostbtn" id="inviteClose">open the board anyway</button>
+  </div>
+</div>
+
+<!-- game over popup -->
+<div class="modal" id="victory">
+  <div class="card">
+    <div id="vIcon"></div>
+    <h2 id="vTitle"></h2>
+    <p id="vReason"></p>
+    <button class="primary" onclick="location.reload()">New game</button>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -183,16 +502,16 @@
 // haven_server web client — a dumb renderer for the authoritative server.
 //
 // Rendering architecture (this is what makes clicks reliable):
-//  * The tile grid is built ONCE per (match, viewer, size) and is the ONLY
-//    clickable layer. Piece/ghost elements are absolutely positioned on top
-//    with `pointer-events: none`, so a click can never be swallowed by an
+//  * The tile grid is built ONCE per (match, viewer, size, tile) and is the
+//    ONLY clickable layer. Piece/ghost elements are absolutely positioned on
+//    top with `pointer-events: none`, so a click can never be swallowed by an
 //    element that a 10 Hz broadcast just replaced (the old full-rebuild bug).
 //  * One persistent element per unit, keyed by unit id, updated in place —
-//    position changes animate as a glide via CSS transition.
+//    position changes animate as a glide; idle bob lives on .body, action
+//    effects (hop/lunge/hit/recoil) live on the inner svg so they compose.
 //  * A state signature skips all DOM work for no-op snapshots.
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
-const TILE = 64;
 const KING_DIRS = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
 const boardEl = $("board"), logEl = $("log"), statsEl = $("stats");
 
@@ -203,6 +522,7 @@ let ws = null;           // WebSocket
 let state = null;        // last full game state
 let selected = null;     // selected unit id (local)
 let boardSize = 8;
+let TILE = 0;            // computed from the viewport; drives --tile
 let reconnectDelay = 500;
 let pingTimer = null;
 
@@ -234,6 +554,65 @@ function unitAt(x, y) {
 }
 function isMine(owner) { return !!myOwner && owner === myOwner; }
 
+// Short-lived action classes (hop/hit/lunge/…) with auto-remove + restart.
+function pulseClass(u, cls, ms) {
+  const el = unitEls.get(String(u.id));
+  if (!el) return;
+  el.classList.remove(cls);
+  void el.offsetWidth; // restart the animation if it is already running
+  el.classList.add(cls);
+  const key = "_t_" + cls;
+  if (el[key]) clearTimeout(el[key]);
+  el[key] = setTimeout(() => el.classList.remove(cls), ms);
+}
+// Point the --lx/--ly unit vector from unit `u` toward tile `to`.
+function aimUnitEl(u, from, to) {
+  const el = unitEls.get(String(u.id));
+  if (!el) return;
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  el.style.setProperty("--lx", (dx / len).toFixed(3));
+  el.style.setProperty("--ly", (dy / len).toFixed(3));
+}
+function faceUnits(aId, bId) {
+  const a = unitById(aId), b = unitById(bId);
+  if (a && b) { aimUnitEl(a, a.pos, b.pos); aimUnitEl(b, b.pos, a.pos); }
+}
+
+// ------------------------------ fx overlays --------------------------------
+function flashTile(tile, kind) {
+  if (!tile) return;
+  // Self-removing overlay: keeps the tile's own animations (lock pulse)
+  // untouched — a second `animation` property would override them.
+  const el = tileEl(tile);
+  if (!el) return;
+  const fx = document.createElement("div");
+  fx.className = "fx-flash" + (kind && kind !== "dmg" ? " " + kind : "");
+  el.appendChild(fx);
+  setTimeout(() => fx.remove(), 520);
+}
+function burstTile(tile) {
+  const el = tileEl(tile);
+  if (!el) return;
+  const fx = document.createElement("div");
+  fx.className = "fx-burst";
+  el.appendChild(fx);
+  setTimeout(() => fx.remove(), 650);
+}
+function spawnBeam(from, to) {
+  const x1 = viewCol(from.x) * TILE + TILE / 2, y1 = viewRow(from.y) * TILE + TILE / 2;
+  const x2 = viewCol(to.x) * TILE + TILE / 2, y2 = viewRow(to.y) * TILE + TILE / 2;
+  const dx = x2 - x1, dy = y2 - y1;
+  const b = document.createElement("div");
+  b.className = "fx-beam";
+  b.style.left = x1 + "px";
+  b.style.top = (y1 - 2.5) + "px";
+  b.style.width = Math.hypot(dx, dy) + "px";
+  b.style.setProperty("--rot", Math.atan2(dy, dx) + "rad");
+  boardEl.appendChild(b);
+  setTimeout(() => b.remove(), 560);
+}
+
 // ------------------------------ REST helpers -------------------------------
 async function api(method, path, body) {
   const res = await fetch(path, {
@@ -253,6 +632,7 @@ async function createMatch() {
     $("matchInput").value = matchId;
     log(`match ${matchId} created — joining as white…`, "ev-sys");
     await joinCurrent();
+    openInvite(); // blocking "share with your friend" popup
   } catch (e) { log("create failed: " + e.message, "ev-combat"); }
 }
 
@@ -281,6 +661,35 @@ async function joinCurrent() {
   }
 }
 
+// ------------------------------ invite popup -------------------------------
+function openInvite() {
+  $("inviteId").textContent = matchId;
+  $("inviteLink").textContent = `${location.origin}/?match=${matchId}`;
+  $("inviteModal").classList.add("open");
+}
+function closeInvite() { $("inviteModal").classList.remove("open"); }
+$("inviteClose").addEventListener("click", closeInvite);
+
+function copyText(txt, btn) {
+  const done = () => {
+    const t = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => (btn.textContent = t), 1200);
+  };
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { /* ignore */ }
+    ta.remove();
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(txt).then(done, fallback);
+  } else fallback();
+}
+$("copyIdBtn").addEventListener("click", () => copyText($("inviteId").textContent, $("copyIdBtn")));
+$("copyLinkBtn").addEventListener("click", () => copyText($("inviteLink").textContent, $("copyLinkBtn")));
+
 // ------------------------------ WebSocket ----------------------------------
 function connect() {
   if (ws) { ws.onclose = null; ws.close(); }
@@ -289,9 +698,11 @@ function connect() {
               (playerToken ? `?token=${encodeURIComponent(playerToken)}` : "");
   ws = new WebSocket(url);
   $("wsStatus").textContent = "connecting…";
+  $("wsStatus").className = "badge connecting";
 
   ws.onopen = () => {
     $("wsStatus").textContent = "connected";
+    $("wsStatus").className = "badge connected";
     reconnectDelay = 500;
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
@@ -304,6 +715,7 @@ function connect() {
   ws.onmessage = (m) => handleServer(JSON.parse(m.data));
   ws.onclose = () => {
     $("wsStatus").textContent = "disconnected";
+    $("wsStatus").className = "badge";
     if (pingTimer) clearInterval(pingTimer);
     // Reconnect with backoff; server sends a fresh snapshot on reconnect.
     reconnectDelay = Math.min(reconnectDelay * 2, 8000);
@@ -321,16 +733,12 @@ function handleServer(msg) {
     case "state_snapshot":
       state = msg.state;
       boardSize = state.board_size;
-      // Keep selection across tick snapshots; drop it only if the unit died
-      // (or a fresh match rebuilt the world with different ids).
-      if (selected != null && !unitById(selected)) selected = null;
-      afterStateChange();
+      afterStateArrived();
       break;
     case "state_delta":
       if (!state) break;
       applyDelta(msg.delta);
-      if (selected != null && !unitById(selected)) selected = null;
-      afterStateChange();
+      afterStateArrived();
       break;
     case "event":
       handleEvent(msg.event);
@@ -340,10 +748,19 @@ function handleServer(msg) {
       log("error: " + msg.detail, "ev-combat");
       break;
     case "pong": {
-      if (ws._pingSent) $("latency").textContent = "latency " + Math.round(performance.now() - ws._pingSent) + " ms";
+      if (ws._pingSent) $("latency").textContent = Math.round(performance.now() - ws._pingSent) + " ms";
       break;
     }
   }
+}
+
+function afterStateArrived() {
+  // Keep selection across tick snapshots; drop it only if the unit died
+  // (or a fresh match rebuilt the world with different ids).
+  if (selected != null && !unitById(selected)) selected = null;
+  // The invite popup is blocking only until the battle actually starts.
+  if (state.status === "active" || state.status === "finished") closeInvite();
+  afterStateChange();
 }
 
 function applyDelta(delta) {
@@ -380,7 +797,7 @@ function stateSignature() {
 function handleEvent(ev) {
   switch (ev.type) {
     case "match_started":
-      log("match started!", "ev-sys");
+      log("match started — good luck!", "ev-sys");
       break;
     case "move_queued": {
       // Optimistic local patch; the next snapshot/delta repeats it exactly.
@@ -394,12 +811,12 @@ function handleEvent(ev) {
       if (un) { un.pending_move = null; un.state = "idle"; }
       if (isMine(ev.by)) log(`moved ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-move");
       afterStateChange();
-      flashTile(ev.to, "flash-dmg");
+      flashTile(ev.to, "dust"); // landing puff; the glide+hop comes from syncBoard
       break;
     }
     case "move_blocked": {
       const un = unitById(ev.unit);
-      if (un) { un.pending_move = null; un.state = "idle"; }
+      if (un) { un.pending_move = null; un.state = "idle"; pulseClass(un, "deny", 320); }
       if (isMine(ev.by)) log(`move blocked: ${tileName(ev.to)} (${ev.reason})`, "ev-combat");
       afterStateChange();
       break;
@@ -409,34 +826,48 @@ function handleEvent(ev) {
       if (unA || unB) {
         if (unA) unA.state = "locked";
         if (unB) unB.state = "locked";
+        faceUnits(ev.a, ev.b); // aim lunge/knock vectors at each other
         afterStateChange();
       }
       log(`melee lock! ${tileNameOf(ev.a)} ↔ ${tileNameOf(ev.b)}`, "ev-combat");
       break;
     }
     case "melee_hit": {
-      const def = unitById(ev.defender);
-      if (def) { def.hp = ev.hp_left; afterStateChange(); }
-      flashTile(def ? def.pos : null, "flash-dmg");
+      const atk = unitById(ev.attacker), def = unitById(ev.defender);
+      if (atk) { faceUnits(ev.attacker, ev.defender); pulseClass(atk, "lunge", 400); }
+      if (def) {
+        def.hp = ev.hp_left;
+        pulseClass(def, "hit", 360);
+        afterStateChange();
+      }
+      flashTile(def ? def.pos : null, "dmg");
       break;
     }
     case "artillery_fired": {
-      const tgt = unitById(ev.target);
-      if (tgt) tgt.hp = Math.max(0, tgt.hp - ev.damage);
+      const shooter = unitById(ev.unit), tgt = unitById(ev.target);
+      if (shooter) { aimUnitEl(shooter, ev.from, ev.to); pulseClass(shooter, "recoil", 460); }
+      if (tgt) {
+        aimUnitEl(tgt, ev.from, ev.to); // knockback along the shot direction
+        tgt.hp = Math.max(0, tgt.hp - ev.damage);
+        pulseClass(tgt, "hit", 360);
+      }
       afterStateChange();
+      spawnBeam(ev.from, ev.to);
+      flashTile(ev.from, "dust");
+      flashTile(ev.to, "fire");
       log(`artillery fired ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-combat");
-      flashTile(ev.to, "flash-fire");
       break;
     }
     case "unit_upgraded": {
       const un = unitById(ev.unit);
-      if (un) { un.kind = "artillery"; afterStateChange(); }
+      if (un) { un.kind = "artillery"; afterStateChange(); pulseClass(un, "bounce", 600); }
+      burstTile(ev.at);
       log(`unit upgraded to artillery at ${tileName(ev.at)}`, "ev-info");
       break;
     }
     case "unit_died":
       log(`unit died at ${tileName(ev.at)} (${ev.owner})`, "ev-combat");
-      flashTile(ev.at, "flash-dmg"); // the death fade itself comes from syncBoard
+      flashTile(ev.at, "dmg"); // the death fade itself comes from syncBoard
       break;
     case "match_over": {
       const w = ev.winner ? ev.winner + " wins" : "draw";
@@ -448,20 +879,70 @@ function handleEvent(ev) {
   updateStats();
 }
 function tileNameOf(id) { const u = unitById(id); return u ? tileName(u.pos) : "?"; }
-
-function flashTile(tile, kind) {
-  if (!tile) return;
-  // Self-removing overlay: keeps the tile's own animations (lock pulse)
-  // untouched — a second `animation` property would override them.
-  const el = tileEl(tile);
-  if (!el) return;
-  const fx = document.createElement("div");
-  fx.className = "fx-flash" + (kind === "flash-fire" ? " fire" : "");
-  el.appendChild(fx);
-  setTimeout(() => fx.remove(), 500);
+// ------------------------- character artwork (SVG) --------------------------
+// Pawns are little soldiers (helmet, plume, shield & spear), artillery is a
+// one-eyed cannon on wooden wheels. Every figure gets the same viewBox and
+// per-owner palette; CSS drives the idle bob/blink/turret-scan animations.
+function characterSVG(owner, kind) {
+  const W = owner === "white";
+  const P = W
+    ? { line:"#43351f", body:"#f7f0dd", shade:"#d9c8a4", steel:"#c7ced6", steelDk:"#8f979f",
+        wood:"#8a5f34", metal:"#b9c2ca", plume:"#4f8fd0", accent:"#5f8fc7", eye:"#2c2419",
+        trim:"#b99f6d", shield:"#7fa8d8", shieldLine:"#3f5f85", shadeOp:"0.06" }
+    : { line:"#15101a", body:"#4e4550", shade:"#37303a", steel:"#9aa1ab", steelDk:"#6a707a",
+        wood:"#4c3b2c", metal:"#7d8490", plume:"#c94f43", accent:"#a04335", eye:"#efe7d4",
+        trim:"#6b5a45", shield:"#8f3f34", shieldLine:"#4a1e19", shadeOp:"0.2" };
+  const S = `stroke="${P.line}" stroke-width="1.7" stroke-linejoin="round"`;
+  if (kind === "artillery") {
+    return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">` +
+      `<ellipse cx="32" cy="57.5" rx="17" ry="3.6" fill="rgba(0,0,0,.35)"/>` +
+      `<path d="M13 51 L51 51 L45 41 L19 41 Z" fill="${P.wood}" ${S}/>` +
+      `<circle cx="20" cy="51" r="5.6" fill="${P.wood}" ${S}/>` +
+      `<circle cx="20" cy="51" r="1.7" fill="${P.line}"/>` +
+      `<circle cx="44" cy="51" r="5.6" fill="${P.wood}" ${S}/>` +
+      `<circle cx="44" cy="51" r="1.7" fill="${P.line}"/>` +
+      `<g class="turret">` +
+        `<rect x="28.6" y="13" width="10.8" height="27" rx="3.4" fill="${P.metal}" ${S}/>` +
+        `<rect x="27.2" y="12" width="13.6" height="5" rx="2.4" fill="${P.steelDk}" ${S}/>` +
+        `<circle cx="34" cy="41.5" r="7" fill="${P.metal}" ${S}/>` +
+        `<circle cx="34" cy="41.5" r="2.6" fill="${P.steelDk}" stroke="${P.line}" stroke-width="1.2"/>` +
+      `</g>` +
+      `<circle class="eye" cx="30.4" cy="41.5" r="2" fill="${P.eye}"/>` +
+      `<circle class="eye" cx="37.6" cy="41.5" r="2" fill="${P.eye}"/>` +
+    `</svg>`;
+  }
+  // pawn — a tiny helmeted soldier with shield and spear
+  return `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">` +
+    `<ellipse cx="32" cy="57.5" rx="15" ry="3.4" fill="rgba(0,0,0,.35)"/>` +
+    `<line x1="47.5" y1="52" x2="47.5" y2="21" stroke="${P.wood}" stroke-width="2.4" stroke-linecap="round"/>` +
+    `<path d="M47.5 14.5 L51 22.5 L44 22.5 Z" fill="${P.steel}" ${S}/>` +
+    `<ellipse cx="26" cy="54.5" rx="4.6" ry="3" fill="${P.shade}" ${S}/>` +
+    `<ellipse cx="38" cy="54.5" rx="4.6" ry="3" fill="${P.shade}" ${S}/>` +
+    `<path d="M21.5 54 C21.5 43 26 38.5 32 38.5 C38 38.5 42.5 43 42.5 54 Z" fill="${P.body}" ${S}/>` +
+    `<path d="M21.5 54 C21.5 43 26 38.5 32 38.5 L32 54 Z" fill="rgba(0,0,0,${P.shadeOp})"/>` +
+    `<rect x="21.9" y="47.5" width="20.2" height="4" rx="2" fill="${P.trim}" stroke="${P.line}" stroke-width="1.2"/>` +
+    `<rect x="29.8" y="47.9" width="4.4" height="3.2" rx="0.8" fill="${P.accent}" stroke="${P.line}" stroke-width="1"/>` +
+    `<circle cx="20.5" cy="43.5" r="3.6" fill="${P.body}" stroke="${P.line}" stroke-width="1.4"/>` +
+    `<path d="M16.8 38.5 C21.5 40.5 21.5 47.5 16.8 50.5 C12.1 47.5 12.1 40.5 16.8 38.5 Z" fill="${P.shield}" stroke="${P.line}" stroke-width="1.4"/>` +
+    `<path d="M16.8 41 L16.8 48" stroke="${P.shieldLine}" stroke-width="1.2" stroke-linecap="round"/>` +
+    `<circle cx="32" cy="28.5" r="9.6" fill="${P.body}" ${S}/>` +
+    `<path d="M22.6 27.6 A9.6 9.6 0 0 1 41.4 27.6 L41.4 28.6 L22.6 28.6 Z" fill="${P.shade}" stroke="${P.line}" stroke-width="1.4" stroke-linejoin="round"/>` +
+    `<rect x="21.2" y="27.4" width="21.6" height="3.4" rx="1.7" fill="${P.trim}" stroke="${P.line}" stroke-width="1.2"/>` +
+    `<path d="M32 18.2 C29.8 14.6 33.6 12.4 32.4 8.4 C36 11 37 15.6 34.6 18.6 Z" fill="${P.plume}" stroke="${P.line}" stroke-width="1.4" stroke-linejoin="round"/>` +
+    (W
+      ? `<circle class="eye" cx="28.6" cy="31.4" r="1.55" fill="${P.eye}"/>` +
+        `<circle class="eye" cx="35.4" cy="31.4" r="1.55" fill="${P.eye}"/>` +
+        `<path d="M30 34.2 Q32 35.8 34 34.2" stroke="${P.line}" stroke-width="1.1" fill="none" stroke-linecap="round"/>`
+      : `<circle class="eye" cx="28.6" cy="31.4" r="1.9" fill="${P.eye}"/>` +
+        `<circle class="eye" cx="35.4" cy="31.4" r="1.9" fill="${P.eye}"/>` +
+        `<circle cx="28.9" cy="31.5" r="0.85" fill="#1a121c"/>` +
+        `<circle cx="35.7" cy="31.5" r="0.85" fill="#1a121c"/>` +
+        `<path d="M26.4 28.9 L30.4 30.1 M37.6 28.9 L33.6 30.1" stroke="${P.line}" stroke-width="1.3" stroke-linecap="round"/>` +
+        `<path d="M30 35 Q32 33.4 34 35" stroke="${P.line}" stroke-width="1.1" fill="none" stroke-linecap="round"/>`) +
+  `</svg>`;
 }
 
-// ------------------------- board build (once) ------------------------------
+// ------------------------- board build (once) -------------------------------
 // Orientation: white players (and spectators) see white's home side (y=0) at
 // the bottom — like sitting behind the white pieces (a1 dark, a-file left); a
 // black player sees black's side at the bottom with files mirrored.
@@ -477,9 +958,28 @@ function tileByKey(k) {
   return tiles[viewRow(y) * boardSize + viewCol(x)] || null;
 }
 
+// The board is the hero: pick the biggest tile size the viewport can fit.
+function computeTile() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const asideSpace = vw > 1060 ? 344 : 0;
+  const availW = vw - asideSpace - 96;
+  const availH = vh - 272; // header + two plaques + frame + page padding
+  return Math.max(36, Math.min(82, Math.floor(Math.min(availW, availH) / boardSize)));
+}
+function applyTile() {
+  const t = computeTile();
+  if (t === TILE) return;
+  TILE = t;
+  document.documentElement.style.setProperty("--tile", t + "px");
+  builtFor = null;
+  ensureBoard();
+  if (state) { lastSig = null; syncBoard(); renderSelection(); }
+}
+window.addEventListener("resize", applyTile);
+
 function ensureBoard() {
-  const key = (matchId || "") + "|" + (myOwner || "spectator") + "|" + boardSize;
-  if (builtFor === key) return;
+  const key = (matchId || "") + "|" + (myOwner || "spectator") + "|" + boardSize + "|" + TILE;
+  if (builtFor === key || TILE === 0) return;
   builtFor = key;
   boardEl.innerHTML = "";
   tiles.length = 0;
@@ -508,15 +1008,58 @@ function ensureBoard() {
   for (let col = 0; col < boardSize; col++) {
     const x = flipped() ? col : boardSize - 1 - col;
     const lab = document.createElement("span");
-    lab.className = "tile file-label"; lab.textContent = String.fromCharCode(97 + x);
+    lab.className = "tile file-label coord"; lab.textContent = String.fromCharCode(97 + x);
     tiles[(boardSize - 1) * boardSize + col].appendChild(lab);
   }
   for (let row = 0; row < boardSize; row++) {
     const y = flipped() ? boardSize - 1 - row : row;
     const lab = document.createElement("span");
-    lab.className = "tile rank-label"; lab.textContent = y + 1;
+    lab.className = "tile rank-label coord"; lab.textContent = y + 1;
     tiles[row * boardSize].appendChild(lab);
   }
+  buildPlaques();
+}
+
+// ------------------------------- plaques ------------------------------------
+let plaqueOwners = { top: "black", bottom: "white" };
+function buildPlaques() {
+  const bottom = flipped() ? "white" : "black";
+  const top = bottom === "white" ? "black" : "white";
+  plaqueOwners = { top, bottom };
+  for (const [elId, owner] of [["plaqueTop", top], ["plaqueBottom", bottom]]) {
+    const el = $(elId);
+    el.className = "plaque " + owner;
+    el.innerHTML =
+      `<div class="avatar">${characterSVG(owner, "pawn")}</div>` +
+      `<div class="who">` +
+        `<div class="name">${owner.charAt(0).toUpperCase() + owner.slice(1)}</div>` +
+        `<div class="hpbar"><div></div></div>` +
+        `<div class="sub">waiting…</div>` +
+      `</div>` +
+      `<div class="tag">YOU</div>`;
+  }
+}
+function updatePlaques() {
+  updatePlaque("plaqueTop", plaqueOwners.top);
+  updatePlaque("plaqueBottom", plaqueOwners.bottom);
+}
+function updatePlaque(elId, owner) {
+  const el = $(elId);
+  if (!state || !el.querySelector(".name")) return;
+  const us = Object.values(state.units).filter(u => u.owner === owner);
+  const hp = us.reduce((s, u) => s + u.hp, 0);
+  const maxhp = us.reduce((s, u) => s + u.max_hp, 0);
+  const self = isMine(owner);
+  el.classList.toggle("self", self);
+  el.querySelector(".name").textContent =
+    (self ? "You — " : "Rival — ") + owner.charAt(0).toUpperCase() + owner.slice(1);
+  el.querySelector(".hpbar > div").style.width =
+    maxhp ? Math.round((100 * hp) / maxhp) + "%" : "0%";
+  const locked = us.filter(u => u.state === "locked").length;
+  let sub = `${us.length} units · ${hp}/${maxhp} hp`;
+  if (locked) sub += ` · ${locked} in melee`;
+  if (state.status === "finished" && state.winner === owner) sub += " · winner";
+  el.querySelector(".sub").textContent = sub;
 }
 
 // --------------------------- in-place board sync ----------------------------
@@ -524,10 +1067,18 @@ function makePieceEl(u) {
   const el = document.createElement("div");
   el.className = "piece";
   el.innerHTML = '<div class="body"></div>';
+  // spawn pop with a little random stagger so armies don't pop in sync
+  el.classList.add("spawn");
+  el.style.setProperty("--spawn-delay", (Math.random() * 0.18).toFixed(2) + "s");
+  setTimeout(() => el.classList.remove("spawn"), 800);
+  // each unit bobs (and blinks) on its own phase
+  el.style.setProperty("--bob-dur", (2.6 + Math.random() * 1.4).toFixed(2) + "s");
+  el.style.setProperty("--bob-delay", (-Math.random() * 3).toFixed(2) + "s");
   return el;
 }
 
 function syncBoard() {
+  if (!state) return;
   const seen = new Set();
   for (const u of Object.values(state.units)) {
     const uid = String(u.id);
@@ -539,21 +1090,37 @@ function syncBoard() {
       hpSig.set(uid, "");
       boardEl.appendChild(el);
     }
-    // Position (CSS transition turns changes into a glide).
+    // Position (CSS transition turns changes into a glide + hop).
+    const kNew = u.pos.x + "," + u.pos.y;
+    if (el.dataset.k && el.dataset.k !== kNew) pulseClass(u, "hop", 400);
+    el.dataset.k = kNew;
     el.style.transform = `translate(${viewCol(u.pos.x) * TILE}px, ${viewRow(u.pos.y) * TILE}px)`;
-    const k = u.pos.x + "," + u.pos.y;
-    el.dataset.k = k;
-    // Owner/kind glyph — rebuilt only when it actually changes.
+    // Owner/kind artwork — rebuilt only when it actually changes.
     const cls = `piece ${u.owner}${u.kind === "artillery" ? " artillery" : ""}`;
     if (el.dataset.cls !== cls) {
       el.dataset.cls = cls;
       el.className = cls;
-      el.querySelector(".body").textContent =
-        u.kind === "artillery" ? "✸" : (u.owner === "white" ? "♙" : "♟");
+      el.querySelector(".body").innerHTML = characterSVG(u.owner, u.kind);
     }
-    // Health pips — rebuilt only on damage/heal.
+    // Tensing-up shake while a move is queued (waiting for the dice).
+    el.classList.toggle("winding", u.state === "moving" && u.kind === "pawn");
+    // Melee facing: keep lunge/knock vectors pointed at the grappled enemy.
+    if (u.state === "locked" && u.melee_target != null) faceUnits(u.id, u.melee_target);
+    // Melee lock pulse on the tile under the unit.
+    const wantLock = u.state === "locked";
+    if (wantLock !== lockedTiles.has(kNew)) {
+      const t = tileEl(u.pos);
+      if (t) { t.classList.toggle("locked", wantLock); }
+      if (wantLock) lockedTiles.add(kNew); else lockedTiles.delete(kNew);
+    }
+    // Health pips — rebuilt only on damage/heal; a drop also knocks the figure.
     const hs = u.hp + "/" + u.max_hp;
     if (hpSig.get(uid) !== hs) {
+      const prev = hpSig.get(uid);
+      if (prev) {
+        const prevHp = Number(prev.split("/")[0]);
+        if (u.hp < prevHp) pulseClass(u, "hit", 360);
+      }
       hpSig.set(uid, hs);
       let hp = el.querySelector(".hp");
       if (!hp) { hp = document.createElement("div"); hp.className = "hp"; el.appendChild(hp); }
@@ -563,13 +1130,6 @@ function syncBoard() {
         pip.className = "pip" + (i < u.hp ? "" : " off");
         hp.appendChild(pip);
       }
-    }
-    // Melee lock pulse on the tile under the unit.
-    const wantLock = u.state === "locked";
-    if (wantLock !== lockedTiles.has(k)) {
-      const t = tileEl(u.pos);
-      if (t) { t.classList.toggle("locked", wantLock); }
-      if (wantLock) lockedTiles.add(k); else lockedTiles.delete(k);
     }
     syncGhost(u);
   }
@@ -611,7 +1171,7 @@ function syncGhost(u) {
   if (!g) {
     g = document.createElement("div");
     g.className = `piece ghost ${u.owner}`;
-    g.innerHTML = `<div class="body">${u.owner === "white" ? "♙" : "♟"}</div>`;
+    g.innerHTML = `<div class="body">${characterSVG(u.owner, "pawn")}</div>`;
     boardEl.appendChild(g);
     ghostEls.set(uid, g);
   }
@@ -684,36 +1244,70 @@ function updateStats() {
   const white = Object.values(state.units).filter(u => u.owner === "white").length;
   const black = Object.values(state.units).filter(u => u.owner === "black").length;
   const status = state.status + (state.winner ? ` — ${state.winner} wins` : "");
+  const shortId = matchId ? (matchId.length > 14 ? matchId.slice(0, 14) + "…" : matchId) : "—";
   statsEl.innerHTML =
-    `match  <b>${matchId ?? "—"}</b><br>` +
+    `match  <b title="${matchId ?? ""}">${shortId}</b><br>` +
     `status <b>${status}</b><br>` +
     `tick   <b>${state.tick}</b><br>` +
     `units  <b>white ${white} · black ${black}</b>`;
   const sel = selected != null ? unitById(selected) : null;
   $("upgradeBtn").disabled = !(sel && sel.kind === "pawn" && isMine(sel.owner) &&
                                sel.state === "idle" && !sel.pending_move && state.status === "active");
+  updatePlaques();
 }
 
+// ------------------------------ victory popup -------------------------------
+function crownSVG(gold) {
+  const fill = gold ? "#e2b45f" : "#5a5048";
+  const line = gold ? "#8a6637" : "#2c2620";
+  return `<svg viewBox="0 0 64 42" width="64" height="42">` +
+    `<path d="M8 30 L6 12 L20 22 L32 6 L44 22 L58 12 L56 30 Z" fill="${fill}" stroke="${line}" stroke-width="2" stroke-linejoin="round"/>` +
+    `<rect x="8" y="30" width="48" height="7" rx="2.5" fill="${fill}" stroke="${line}" stroke-width="2"/>` +
+  `</svg>`;
+}
+function scalesSVG() {
+  return `<svg viewBox="0 0 64 44" width="64" height="44">` +
+    `<line x1="32" y1="6" x2="32" y2="36" stroke="#a99a80" stroke-width="2.5" stroke-linecap="round"/>` +
+    `<line x1="10" y1="12" x2="54" y2="12" stroke="#a99a80" stroke-width="2.5" stroke-linecap="round"/>` +
+    `<line x1="10" y1="12" x2="5" y2="26" stroke="#a99a80" stroke-width="1.6"/>` +
+    `<line x1="10" y1="12" x2="15" y2="26" stroke="#a99a80" stroke-width="1.6"/>` +
+    `<line x1="54" y1="12" x2="49" y2="26" stroke="#a99a80" stroke-width="1.6"/>` +
+    `<line x1="54" y1="12" x2="59" y2="26" stroke="#a99a80" stroke-width="1.6"/>` +
+    `<path d="M2 26 A8 5 0 0 0 18 26 Z" fill="#8d8069"/>` +
+    `<path d="M46 26 A8 5 0 0 0 62 26 Z" fill="#8d8069"/>` +
+    `<rect x="26" y="36" width="12" height="4" rx="2" fill="#8d8069"/>` +
+  `</svg>`;
+}
 function showVictory(ev) {
   selected = null;
   renderSelection();
-  const v = $("victory");
   const won = ev.winner && ev.winner === myOwner;
   const drew = !ev.winner;
   $("vTitle").textContent = drew ? "Draw" : (won ? "Victory!" : "Defeat");
-  $("vTitle").style.color = drew ? "#57503f" : (won ? "var(--accent)" : "var(--danger)");
+  $("vTitle").style.color = drew ? "var(--ink-dim)" : (won ? "var(--accent)" : "var(--danger)");
   $("vReason").textContent = ev.reason.replaceAll("_", " ");
-  v.style.display = "flex";
+  $("vIcon").innerHTML = drew ? scalesSVG() : crownSVG(won);
+  $("victory").classList.add("open");
 }
 
-// auto-restore a match id from this session (second tab flow)
+// --------------------------------- boot -------------------------------------
+// auto-restore a match id from this session (second tab flow), or auto-join
+// straight from a shared invite link (?match=<id>)
 $("createBtn").addEventListener("click", createMatch);
 $("joinBtn").addEventListener("click", joinMatch);
-for (let i = 0; i < sessionStorage.length; i++) {
-  const k = sessionStorage.key(i);
-  if (k.startsWith("match_")) { $("matchInput").value = k.slice(6); break; }
+const urlMatch = new URLSearchParams(location.search).get("match");
+if (urlMatch) {
+  $("matchInput").value = urlMatch;
+  history.replaceState(null, "", location.pathname);
+  log("invite link detected — joining…", "ev-sys");
+  setTimeout(joinMatch, 300);
+} else {
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const k = sessionStorage.key(i);
+    if (k.startsWith("match_")) { $("matchInput").value = k.slice(6); break; }
+  }
 }
-ensureBoard(); // draw the empty board before the first snapshot arrives
+applyTile(); // sizes the board to the viewport and draws the empty grid
 log("ready — create or join a match", "ev-sys");
 </script>
 </body>
