@@ -83,6 +83,11 @@
   @keyframes flash { 0% { background: #ff6b5e; } 100% {} }
   .tile.flash-fire { animation: fireflash 0.5s ease-out; }
   @keyframes fireflash { 0% { background: #ffd24d; } 100% {} }
+  .piece.dying { animation: die 0.6s ease-out forwards; pointer-events: none; }
+  @keyframes die {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.6) rotate(20deg); }
+  }
 
   aside { flex: 1 1 320px; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
   .panel {
@@ -329,6 +334,7 @@ function handleEvent(ev) {
       break;
     case "unit_died":
       log(`unit died at ${tileName(ev.at)} (${ev.owner})`, "ev-combat");
+      deathFx(ev);
       break;
     case "match_over": {
       const w = ev.winner ? ev.winner + " wins" : "draw";
@@ -347,6 +353,16 @@ function flashTile(tile, cls) {
   if (!tile) return;
   const el = tileEl(tile);
   if (el) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+}
+function deathFx(ev) {
+  const el = tileEl(ev.at);
+  if (!el) return;
+  const ghost = document.createElement("div");
+  ghost.className = "piece " + ev.owner + " dying";
+  ghost.textContent = ev.owner === "white" ? "♙" : "♟";
+  el.appendChild(ghost);
+  flashTile(ev.at, "flash-dmg");
+  setTimeout(() => ghost.remove(), 650);
 }
 
 // ------------------------------- rendering ---------------------------------

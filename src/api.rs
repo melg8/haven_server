@@ -95,21 +95,9 @@ pub async fn ws_route(
         Some(token) => handle.role_for_token(token).await,
         None => crate::network::Role::Spectator,
     };
-    let broadcast_rx = handle.broadcast.subscribe();
-    let current_state = handle.current_state().await;
-    let input_tx = handle.input_tx.clone();
 
     upgrade
-        .on_upgrade(move |socket| {
-            crate::network::run_connection(
-                socket,
-                role,
-                match_id,
-                broadcast_rx,
-                input_tx,
-                current_state,
-            )
-        })
+        .on_upgrade(move |socket| crate::network::run_connection(socket, role, handle))
         .into_response()
 }
 

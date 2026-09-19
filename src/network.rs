@@ -165,11 +165,12 @@ pub const INPUT_QUEUE_SIZE: usize = 256;
 pub async fn run_connection(
     socket: WebSocket,
     role: Role,
-    match_id: String,
-    broadcast_rx: broadcast::Receiver<std::sync::Arc<ServerMessage>>,
-    input_tx: mpsc::Sender<InputItem>,
-    current_state: GameState,
+    handle: crate::match_manager::MatchHandle,
 ) {
+    let broadcast_rx = handle.broadcast.subscribe();
+    let input_tx = handle.input_tx.clone();
+    let match_id = handle.id.clone();
+    let current_state = handle.current_state().await;
     let (mut sink, mut stream) = socket.split();
     let (direct_tx, mut direct_rx) = mpsc::channel::<ServerMessage>(DIRECT_CHANNEL_SIZE);
 
@@ -189,6 +190,7 @@ pub async fn run_connection(
         .await;
 
     // Outbound task: broadcast + direct frames → socket.
+    let resync_handle = handle.clone();
     let outbound = tokio::spawn(async move {
         let mut broadcast_rx = broadcast_rx;
         loop {
@@ -201,11 +203,18 @@ pub async fn run_connection(
                             }
                         }
                         Err(broadcast::error::RecvError::Lagged(n)) => {
-                            // Client fell behind: it is stale, so force a resync
-                            // by... the next snapshot tick will heal deltas, but
-                            // to stay honest we just log; snapshot mode resends
-                            // full state every tick anyway.
-                            tracing::warn!("client lagged behind by {n} messages");
+                            // Client fell behind: whatever mode the match uses,
+                            // a delta stream is now useless — resync with a full
+                            // snapshot ("reconnection handling").
+                            tracing::warn!(match_id = %match_id, "client lagged by {n} messages — resyncing");
+                            let state = resync_handle.current_state().await;
+                            if sink
+                                .send(to_ws_text(&ServerMessage::StateSnapshot { state }))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
                         }
                         Err(broadcast::error::RecvError::Closed) => break,
                     }
