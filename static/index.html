@@ -71,18 +71,21 @@
   }
   .tile.locked { animation: lockpulse 1s ease-in-out infinite; }
   @keyframes lockpulse {
-    0%, 100% { box-shadow: inset 0 0 0 2px rgba(210, 60, 60, 0.35); }
-    50% { box-shadow: inset 0 0 0 5px rgba(210, 60, 60, 0.75); }
+    0%, 100% { box-shadow: inset 0 0 0 3px rgba(210, 60, 60, 0.55); }
+    50% { box-shadow: inset 0 0 0 7px rgba(210, 60, 60, 0.95); }
   }
   .hp {
     position: absolute; bottom: 3px; display: flex; gap: 2px; z-index: 3;
   }
   .hp .pip { width: 7px; height: 7px; border-radius: 50%; background: #43b02a; border: 1px solid rgba(0,0,0,0.4); }
   .hp .pip.off { background: #7c7268; }
-  .tile.flash-dmg { animation: flash 0.4s ease-out; }
-  @keyframes flash { 0% { background: #ff6b5e; } 100% {} }
-  .tile.flash-fire { animation: fireflash 0.5s ease-out; }
-  @keyframes fireflash { 0% { background: #ffd24d; } 100% {} }
+  .fx-flash {
+    position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    animation: flashfx 0.45s ease-out forwards;
+  }
+  @keyframes flashfx { 0% { background: #ff6b5e; } 100% { background: transparent; } }
+  .fx-flash.fire { animation-name: firefx; }
+  @keyframes firefx { 0% { background: #ffd24d; } 100% { background: transparent; } }
   .piece.dying { animation: die 0.6s ease-out forwards; pointer-events: none; }
   @keyframes die {
     0% { opacity: 1; transform: scale(1); }
@@ -179,7 +182,8 @@ function log(text, cls) {
   while (logEl.children.length > 200) logEl.lastChild.remove();
 }
 function tileName(t) {
-  return String.fromCharCode(97 + t.x) + (boardSize - t.y);
+  // Absolute chess notation: file letter + rank (server y=0 is rank 1).
+  return String.fromCharCode(97 + t.x) + (t.y + 1);
 }
 function unitById(id) { return state ? state.units[String(id)] : null; }
 
@@ -270,7 +274,9 @@ function handleServer(msg) {
     case "state_snapshot":
       state = msg.state;
       boardSize = state.board_size;
-      selected = null;
+      // Keep selection across tick snapshots; drop it only if the unit died
+      // (or a fresh match rebuilt the world with different ids).
+      if (selected != null && !unitById(selected)) selected = null;
       render();
       break;
     case "state_delta":
@@ -298,7 +304,10 @@ function applyDelta(delta) {
   state.winner = delta.winner;
   state.end_reason = delta.end_reason;
   for (const u of delta.updated) state.units[String(u.id)] = u;
-  for (const id of delta.removed) delete state.units[String(id)];
+  for (const id of delta.removed) {
+    delete state.units[String(id)];
+    if (selected === Number(id)) selected = null;
+  }
 }
 
 function handleEvent(ev) {
@@ -349,10 +358,15 @@ function tileNameOf(id) { const u = unitById(id); return u ? tileName(u.pos) : "
 function unitPos(id) { const u = unitById(id); return u ? u.pos : null; }
 function isMine(owner) { return myOwner && owner === myOwner; }
 
-function flashTile(tile, cls) {
-  if (!tile) return;
+function flashTile(tile, kind) {
+  // Self-removing overlay: keeps the tile's own animations (lock pulse)
+  // untouched — a second `animation` property would override them.
   const el = tileEl(tile);
-  if (el) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  if (!el) return;
+  const fx = document.createElement("div");
+  fx.className = "fx-flash" + (kind === "flash-fire" ? " fire" : "");
+  el.appendChild(fx);
+  setTimeout(() => fx.remove(), 500);
 }
 function deathFx(ev) {
   const el = tileEl(ev.at);
@@ -366,45 +380,58 @@ function deathFx(ev) {
 }
 
 // ------------------------------- rendering ---------------------------------
-function flipY() { return myOwner === "black"; } // black sees its side at bottom
-function viewRow(y) { return flipY() ? boardSize - 1 - y : y; }
+// Orientation: white players (and spectators) see white's home side (y=0) at
+// the bottom — like sitting behind the white pieces (a1 dark, a-file left); a
+// black player sees black's side at the bottom with files mirrored.
+function flipped() { return myOwner !== "black"; }
+function viewCol(x) { return flipped() ? x : boardSize - 1 - x; }
+function viewRow(y) { return flipped() ? boardSize - 1 - y : y; }
 function tileEl(t) {
-  return boardEl.children[viewRow(t.y) * boardSize + t.x];
+  return boardEl.children[viewRow(t.y) * boardSize + viewCol(t.x)];
 }
+let builtFor = null; // viewer + board size the current grid was built for
 
 function buildBoard() {
   boardEl.style.gridTemplateColumns = `repeat(${boardSize}, 64px)`;
   boardEl.style.gridTemplateRows = `repeat(${boardSize}, 64px)`;
   boardEl.innerHTML = "";
   for (let row = 0; row < boardSize; row++) {
-    const y = flipY() ? boardSize - 1 - row : row;
-    for (let x = 0; x < boardSize; x++) {
+    const y = flipped() ? boardSize - 1 - row : row;
+    for (let col = 0; col < boardSize; col++) {
+      const x = flipped() ? col : boardSize - 1 - col;
       const t = document.createElement("div");
-      t.className = `tile ${(x + y) % 2 === 0 ? "light" : "dark"}`;
+      // a1 (0,0) is a dark square, like on a real chess board.
+      t.className = `tile ${(x + y) % 2 === 0 ? "dark" : "light"}`;
       t.dataset.x = x; t.dataset.y = y;
       t.addEventListener("click", () => onTileClick(x, y));
       t.addEventListener("contextmenu", (e) => { e.preventDefault(); deselect(); render(); });
       boardEl.appendChild(t);
     }
   }
-  // coordinate labels on white's left column & bottom row
-  for (let x = 0; x < boardSize; x++) {
-    const el = boardEl.children[(boardSize - 1) * boardSize + x];
+  // Coordinate labels: files along the bottom grid row, ranks on the left.
+  for (let col = 0; col < boardSize; col++) {
+    const x = flipped() ? col : boardSize - 1 - col;
+    const el = boardEl.children[(boardSize - 1) * boardSize + col];
     const lab = document.createElement("span");
     lab.className = "tile file-label"; lab.textContent = String.fromCharCode(97 + x);
     el.appendChild(lab);
   }
-  for (let y = 0; y < boardSize; y++) {
-    const el = boardEl.children[viewRow(y) * boardSize];
+  for (let row = 0; row < boardSize; row++) {
+    const y = flipped() ? boardSize - 1 - row : row;
+    const el = boardEl.children[row * boardSize];
     const lab = document.createElement("span");
-    lab.className = "tile rank-label"; lab.textContent = boardSize - y;
+    lab.className = "tile rank-label"; lab.textContent = y + 1;
     el.appendChild(lab);
   }
 }
 
 function render() {
   if (!state) return;
-  if (boardEl.children.length !== boardSize * boardSize) buildBoard();
+  const who = (myOwner || "spectator") + boardSize;
+  if (boardEl.children.length !== boardSize * boardSize || builtFor !== who) {
+    buildBoard();
+    builtFor = who;
+  }
   for (const el of boardEl.querySelectorAll(".piece, .hp")) el.remove();
   for (const el of boardEl.children) {
     el.classList.remove("selected", "move-target", "locked");
@@ -432,7 +459,7 @@ function render() {
     el.appendChild(hp);
 
     if (selected === u.id) el.classList.add("selected");
-    if (selected === u.id && u.state !== "locked") {
+    if (selected === u.id && u.kind === "pawn" && u.state !== "locked") {
       for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]) {
         const nx = u.pos.x + dx, ny = u.pos.y + dy;
         if (nx < 0 || ny < 0 || nx >= boardSize || ny >= boardSize) continue;

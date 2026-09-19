@@ -4,6 +4,26 @@ Authoritative **RTS Chess** game server: chess meets real-time strategy.
 Built with **Rust + Axum + Tokio + WebSocket**. The server is the single source
 of truth — clients send inputs, the server simulates and broadcasts state.
 
+## Screenshots
+
+Captured from the embedded web client during a real match (the demo is driven
+headlessly by `scripts/take_screenshots.py` in the dev workspace).
+
+**Select a pawn — green ring, move-target hints**
+![Select a pawn](docs/screenshots/01_select.png)
+
+**Queued moves roll the dice every tick — ghost pieces show pending intent**
+![Queued moves](docs/screenshots/02_move_queued.png)
+
+**Adjacent enemies lock in melee — red pulse, damage ticks down on a cooldown**
+![Melee lock](docs/screenshots/03_melee_lock.png)
+
+**Pawn upgraded to artillery — straight-line shots with line-of-sight checks**
+![Artillery fire](docs/screenshots/04_artillery.png)
+
+**Mid-game overview — event log, health pips, live unit counts**
+![Match overview](docs/screenshots/05_overview.png)
+
 ## Features
 
 - **Fixed-tick simulation** (10 Hz, configurable) with probabilistic movement —
