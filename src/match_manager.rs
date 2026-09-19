@@ -333,14 +333,20 @@ async fn run_match_task(handle: MatchHandle, mut input_rx: mpsc::Receiver<InputI
                 // (&mut state, &cfg, &mut rng) are visible to the compiler.
                 let inner: &mut MatchInner = &mut inner;
 
-                // 1. Drain queued client inputs.
+                // 1. Drain queued client inputs; their bookkeeping events
+                //    (MoveQueued, UnitUpgraded) join the tick's event list so
+                //    delta-mode broadcasts include input-caused changes.
+                let mut events = Vec::new();
                 while let Ok(item) = input_rx.try_recv() {
-                    handle_input(&handle, inner, item);
+                    handle_input(&handle, inner, item, &mut events);
                 }
 
                 // 2..7. Advance the world one tick.
-                let events =
-                    simulation::tick(&mut inner.state, &inner.cfg.simulation, &mut inner.rng);
+                events.extend(simulation::tick(
+                    &mut inner.state,
+                    &inner.cfg.simulation,
+                    &mut inner.rng,
+                ));
 
                 // 8. Broadcast state + events.
                 match inner.cfg.simulation.broadcast_mode {
@@ -419,8 +425,15 @@ async fn run_match_task(handle: MatchHandle, mut input_rx: mpsc::Receiver<InputI
     }
 }
 
-/// Validate + apply one client input while the match lock is held.
-fn handle_input(handle: &MatchHandle, inner: &mut MatchInner, item: InputItem) {
+/// Validate + apply one client input while the match lock is held. Produced
+/// bookkeeping events are appended to `events` (the caller broadcasts them
+/// together with the tick's own events, and folds them into delta updates).
+fn handle_input(
+    handle: &MatchHandle,
+    inner: &mut MatchInner,
+    item: InputItem,
+    events: &mut Vec<simulation::GameEvent>,
+) {
     let role = item.from;
     let owner = match role.owner() {
         Some(o) => o,
@@ -433,21 +446,14 @@ fn handle_input(handle: &MatchHandle, inner: &mut MatchInner, item: InputItem) {
             return;
         }
     };
-    let mut events = Vec::new();
     match input::handle_message(
         &mut inner.state,
         owner,
         item.msg,
         &inner.cfg.simulation,
-        &mut events,
+        events,
     ) {
-        Ok(()) => {
-            for ev in events {
-                let _ = handle
-                    .broadcast
-                    .send(Arc::new(ServerMessage::Event { event: ev }));
-            }
-        }
+        Ok(()) => {}
         Err(e) => {
             let _ = handle.broadcast.send(Arc::new(ServerMessage::Error {
                 to: Some(owner),

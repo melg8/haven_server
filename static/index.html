@@ -12,6 +12,7 @@
     --panel: #faf6ee;
     --accent: #2e9e5b;
     --danger: #d23c3c;
+    --tile: 64px;
   }
   * { box-sizing: border-box; }
   body {
@@ -44,11 +45,15 @@
 
   #boardwrap { flex: 0 0 auto; position: relative; }
   #board {
-    display: grid; grid-template-columns: repeat(8, 64px); grid-template-rows: repeat(8, 64px);
+    position: relative;
+    display: grid; grid-template-columns: repeat(8, var(--tile)); grid-template-rows: repeat(8, var(--tile));
     border: 6px solid #5a4632; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     user-select: none;
   }
-  .tile { position: relative; display: flex; align-items: center; justify-content: center; }
+  .tile {
+    position: relative; width: var(--tile); height: var(--tile);
+    display: flex; align-items: center; justify-content: center;
+  }
   .tile.light { background: var(--wood-light); }
   .tile.dark  { background: var(--wood-dark); }
   .tile.file-label, .tile.rank-label {
@@ -56,41 +61,58 @@
   }
   .tile.file-label { bottom: 2px; right: 4px; }
   .tile.rank-label { top: 2px; left: 4px; }
-  .piece {
-    font-size: 44px; line-height: 1; cursor: pointer; z-index: 2;
-    transition: transform 0.12s ease;
-  }
-  .piece.white { color: #ffffff; text-shadow: 0 0 2px #2b241c, 0 1px 1px #2b241c, -1px 0 0 #2b241c, 1px 0 0 #2b241c; }
-  .piece.black { color: #1c1712; text-shadow: 0 0 2px #f3ede2; }
-  .piece.artillery { font-size: 34px; }
-  .piece.ghost { opacity: 0.45; }
+  /* Clicks always land on the persistent tile layer — pieces are painted on
+     top but ignore the mouse. This is what makes selection 100% reliable. */
+  .tile.own, .tile.move-target { cursor: pointer; }
   .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
   .tile.move-target::after {
-    content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%;
-    background: rgba(46, 158, 91, 0.55); z-index: 1;
+    content: ""; position: absolute; width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(46, 158, 91, 0.5); z-index: 4; transition: transform 0.12s ease;
   }
+  .tile.move-target:hover::after { transform: scale(1.4); background: rgba(46, 158, 91, 0.85); }
   .tile.locked { animation: lockpulse 1s ease-in-out infinite; }
   @keyframes lockpulse {
     0%, 100% { box-shadow: inset 0 0 0 3px rgba(210, 60, 60, 0.55); }
     50% { box-shadow: inset 0 0 0 7px rgba(210, 60, 60, 0.95); }
   }
+
+  /* Piece layer: one absolutely-positioned element per unit, keyed by unit id
+     and updated in place. The outer div owns the position (transition = glide
+     animation); the inner .body owns the glyph (and the death animation, so
+     the two transforms never fight each other). */
+  .piece {
+    position: absolute; left: 0; top: 0; width: var(--tile); height: var(--tile);
+    pointer-events: none; z-index: 2;
+    transition: transform 0.18s ease; will-change: transform;
+  }
+  .piece .body {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 44px; line-height: 1;
+  }
+  .piece.white .body { color: #ffffff; text-shadow: 0 0 2px #2b241c, 0 1px 1px #2b241c, -1px 0 0 #2b241c, 1px 0 0 #2b241c; }
+  .piece.black .body { color: #1c1712; text-shadow: 0 0 2px #f3ede2; }
+  .piece.artillery .body { font-size: 34px; }
+  .piece.ghost { opacity: 0.4; z-index: 1; }
+  .piece.sel .body { filter: drop-shadow(0 0 7px var(--accent)); }
+  .piece .body.dying { animation: die 0.6s ease-out forwards; }
+  @keyframes die {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.6) rotate(20deg); }
+  }
   .hp {
-    position: absolute; bottom: 3px; display: flex; gap: 2px; z-index: 3;
+    position: absolute; bottom: 3px; left: 0; right: 0;
+    display: flex; gap: 2px; justify-content: center; z-index: 3;
   }
   .hp .pip { width: 7px; height: 7px; border-radius: 50%; background: #43b02a; border: 1px solid rgba(0,0,0,0.4); }
   .hp .pip.off { background: #7c7268; }
   .fx-flash {
-    position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    position: absolute; inset: 0; z-index: 5; pointer-events: none;
     animation: flashfx 0.45s ease-out forwards;
   }
   @keyframes flashfx { 0% { background: #ff6b5e; } 100% { background: transparent; } }
   .fx-flash.fire { animation-name: firefx; }
   @keyframes firefx { 0% { background: #ffd24d; } 100% { background: transparent; } }
-  .piece.dying { animation: die 0.6s ease-out forwards; pointer-events: none; }
-  @keyframes die {
-    0% { opacity: 1; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.6) rotate(20deg); }
-  }
 
   aside { flex: 1 1 320px; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
   .panel {
@@ -147,9 +169,10 @@
     </div>
     <div class="panel">
       <div id="hint">Create a match in this tab (you play white), then open a second tab,
-      paste the match id and join — the match auto-starts. Left click selects a pawn,
-      click a highlighted tile queues a move (it resolves on a probabilistic dice roll),
-      right click cancels.</div>
+      paste the match id and join — the match auto-starts. Click one of your pawns to
+      select it (green dots = possible steps), click a dot to queue a move (it resolves
+      on a probabilistic dice roll), right click deselects. Pawns that touch enemies
+      lock into melee on their own; reach the far rank to upgrade into artillery.</div>
     </div>
   </aside>
 </main>
@@ -158,8 +181,19 @@
 "use strict";
 // ---------------------------------------------------------------------------
 // haven_server web client — a dumb renderer for the authoritative server.
+//
+// Rendering architecture (this is what makes clicks reliable):
+//  * The tile grid is built ONCE per (match, viewer, size) and is the ONLY
+//    clickable layer. Piece/ghost elements are absolutely positioned on top
+//    with `pointer-events: none`, so a click can never be swallowed by an
+//    element that a 10 Hz broadcast just replaced (the old full-rebuild bug).
+//  * One persistent element per unit, keyed by unit id, updated in place —
+//    position changes animate as a glide via CSS transition.
+//  * A state signature skips all DOM work for no-op snapshots.
 // ---------------------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
+const TILE = 64;
+const KING_DIRS = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
 const boardEl = $("board"), logEl = $("log"), statsEl = $("stats");
 
 let matchId = null;      // current match id
@@ -171,7 +205,16 @@ let selected = null;     // selected unit id (local)
 let boardSize = 8;
 let reconnectDelay = 500;
 let pingTimer = null;
-const pendingGhost = {}; // unit_id -> target tile (from move_queued events)
+
+const tiles = [];            // persistent tile elements, index = viewRow*8+viewCol
+const unitEls = new Map();   // unit id (string) -> piece element
+const ghostEls = new Map();  // unit id (string) -> queued-move ghost element
+const hpSig = new Map();     // unit id -> "hp/max" last painted
+const lockedTiles = new Set(); // tile keys currently pulsing (.locked)
+const ownTiles = new Set();    // tile keys with own unit (.own cursor)
+let markedTiles = [];          // tiles carrying .selected/.move-target
+let builtFor = null;           // board cache key currently built
+let lastSig = null;            // last rendered state signature
 
 // ------------------------------- utilities --------------------------------
 function log(text, cls) {
@@ -185,7 +228,11 @@ function tileName(t) {
   // Absolute chess notation: file letter + rank (server y=0 is rank 1).
   return String.fromCharCode(97 + t.x) + (t.y + 1);
 }
-function unitById(id) { return state ? state.units[String(id)] : null; }
+function unitById(id) { return state ? state.units[String(id)] || null : null; }
+function unitAt(x, y) {
+  return state ? Object.values(state.units).find(u => u.pos.x === x && u.pos.y === y) || null : null;
+}
+function isMine(owner) { return !!myOwner && owner === myOwner; }
 
 // ------------------------------ REST helpers -------------------------------
 async function api(method, path, body) {
@@ -277,11 +324,13 @@ function handleServer(msg) {
       // Keep selection across tick snapshots; drop it only if the unit died
       // (or a fresh match rebuilt the world with different ids).
       if (selected != null && !unitById(selected)) selected = null;
-      render();
+      afterStateChange();
       break;
     case "state_delta":
+      if (!state) break;
       applyDelta(msg.delta);
-      render();
+      if (selected != null && !unitById(selected)) selected = null;
+      afterStateChange();
       break;
     case "event":
       handleEvent(msg.event);
@@ -298,16 +347,34 @@ function handleServer(msg) {
 }
 
 function applyDelta(delta) {
-  if (!state) return;
   state.tick = delta.tick;
   state.status = delta.status;
   state.winner = delta.winner;
   state.end_reason = delta.end_reason;
   for (const u of delta.updated) state.units[String(u.id)] = u;
-  for (const id of delta.removed) {
-    delete state.units[String(id)];
-    if (selected === Number(id)) selected = null;
+  for (const id of delta.removed) delete state.units[String(id)];
+}
+
+// Render pipeline: cheap stats update always; board sync only when the
+// signature of everything the board can show actually changed.
+function afterStateChange() {
+  updateStats();
+  const sig = stateSignature();
+  if (sig === lastSig) return;
+  lastSig = sig;
+  ensureBoard();
+  syncBoard();
+  renderSelection();
+}
+
+function stateSignature() {
+  const us = Object.values(state.units).sort((a, b) => a.id - b.id);
+  let s = `${state.status}|${state.winner ?? ""}|${state.end_reason ?? ""}|${boardSize}`;
+  for (const u of us) {
+    s += `|${u.id}:${u.pos.x},${u.pos.y}:${u.hp}/${u.max_hp}:${u.kind}:${u.state}` +
+         `:${u.pending_move ? u.pending_move.x + "-" + u.pending_move.y : ""}`;
   }
+  return s;
 }
 
 function handleEvent(ev) {
@@ -315,35 +382,61 @@ function handleEvent(ev) {
     case "match_started":
       log("match started!", "ev-sys");
       break;
-    case "move_queued":
-      pendingGhost[ev.unit] = ev.to;
+    case "move_queued": {
+      // Optimistic local patch; the next snapshot/delta repeats it exactly.
+      const un = unitById(ev.unit);
+      if (un) { un.pending_move = ev.to; un.state = "moving"; afterStateChange(); }
       if (isMine(ev.by)) log(`queued ${tileName(ev.from)} → ${tileName(ev.to)} (rolling dice…)`, "ev-move");
       break;
-    case "move_resolved":
-      delete pendingGhost[ev.unit];
+    }
+    case "move_resolved": {
+      const un = unitById(ev.unit);
+      if (un) { un.pending_move = null; un.state = "idle"; }
       if (isMine(ev.by)) log(`moved ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-move");
+      afterStateChange();
       flashTile(ev.to, "flash-dmg");
       break;
-    case "move_blocked":
-      delete pendingGhost[ev.unit];
+    }
+    case "move_blocked": {
+      const un = unitById(ev.unit);
+      if (un) { un.pending_move = null; un.state = "idle"; }
       if (isMine(ev.by)) log(`move blocked: ${tileName(ev.to)} (${ev.reason})`, "ev-combat");
+      afterStateChange();
       break;
-    case "melee_locked":
+    }
+    case "melee_locked": {
+      const unA = unitById(ev.a), unB = unitById(ev.b);
+      if (unA || unB) {
+        if (unA) unA.state = "locked";
+        if (unB) unB.state = "locked";
+        afterStateChange();
+      }
       log(`melee lock! ${tileNameOf(ev.a)} ↔ ${tileNameOf(ev.b)}`, "ev-combat");
       break;
-    case "melee_hit":
-      flashTile(unitPos(ev.defender), "flash-dmg");
+    }
+    case "melee_hit": {
+      const def = unitById(ev.defender);
+      if (def) { def.hp = ev.hp_left; afterStateChange(); }
+      flashTile(def ? def.pos : null, "flash-dmg");
       break;
-    case "artillery_fired":
+    }
+    case "artillery_fired": {
+      const tgt = unitById(ev.target);
+      if (tgt) tgt.hp = Math.max(0, tgt.hp - ev.damage);
+      afterStateChange();
       log(`artillery fired ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-combat");
       flashTile(ev.to, "flash-fire");
       break;
-    case "unit_upgraded":
+    }
+    case "unit_upgraded": {
+      const un = unitById(ev.unit);
+      if (un) { un.kind = "artillery"; afterStateChange(); }
       log(`unit upgraded to artillery at ${tileName(ev.at)}`, "ev-info");
       break;
+    }
     case "unit_died":
       log(`unit died at ${tileName(ev.at)} (${ev.owner})`, "ev-combat");
-      deathFx(ev);
+      flashTile(ev.at, "flash-dmg"); // the death fade itself comes from syncBoard
       break;
     case "match_over": {
       const w = ev.winner ? ev.winner + " wins" : "draw";
@@ -355,10 +448,9 @@ function handleEvent(ev) {
   updateStats();
 }
 function tileNameOf(id) { const u = unitById(id); return u ? tileName(u.pos) : "?"; }
-function unitPos(id) { const u = unitById(id); return u ? u.pos : null; }
-function isMine(owner) { return myOwner && owner === myOwner; }
 
 function flashTile(tile, kind) {
+  if (!tile) return;
   // Self-removing overlay: keeps the tile's own animations (lock pulse)
   // untouched — a second `animation` property would override them.
   const el = tileEl(tile);
@@ -368,18 +460,8 @@ function flashTile(tile, kind) {
   el.appendChild(fx);
   setTimeout(() => fx.remove(), 500);
 }
-function deathFx(ev) {
-  const el = tileEl(ev.at);
-  if (!el) return;
-  const ghost = document.createElement("div");
-  ghost.className = "piece " + ev.owner + " dying";
-  ghost.textContent = ev.owner === "white" ? "♙" : "♟";
-  el.appendChild(ghost);
-  flashTile(ev.at, "flash-dmg");
-  setTimeout(() => ghost.remove(), 650);
-}
 
-// ------------------------------- rendering ---------------------------------
+// ------------------------- board build (once) ------------------------------
 // Orientation: white players (and spectators) see white's home side (y=0) at
 // the bottom — like sitting behind the white pieces (a1 dark, a-file left); a
 // black player sees black's side at the bottom with files mirrored.
@@ -387,14 +469,24 @@ function flipped() { return myOwner !== "black"; }
 function viewCol(x) { return flipped() ? x : boardSize - 1 - x; }
 function viewRow(y) { return flipped() ? boardSize - 1 - y : y; }
 function tileEl(t) {
-  return boardEl.children[viewRow(t.y) * boardSize + viewCol(t.x)];
+  if (!t) return null;
+  return tiles[viewRow(t.y) * boardSize + viewCol(t.x)] || null;
 }
-let builtFor = null; // viewer + board size the current grid was built for
+function tileByKey(k) {
+  const [x, y] = k.split(",").map(Number);
+  return tiles[viewRow(y) * boardSize + viewCol(x)] || null;
+}
 
-function buildBoard() {
-  boardEl.style.gridTemplateColumns = `repeat(${boardSize}, 64px)`;
-  boardEl.style.gridTemplateRows = `repeat(${boardSize}, 64px)`;
+function ensureBoard() {
+  const key = (matchId || "") + "|" + (myOwner || "spectator") + "|" + boardSize;
+  if (builtFor === key) return;
+  builtFor = key;
   boardEl.innerHTML = "";
+  tiles.length = 0;
+  unitEls.clear(); ghostEls.clear(); hpSig.clear();
+  lockedTiles.clear(); ownTiles.clear(); markedTiles = [];
+  boardEl.style.gridTemplateColumns = `repeat(${boardSize}, ${TILE}px)`;
+  boardEl.style.gridTemplateRows = `repeat(${boardSize}, ${TILE}px)`;
   for (let row = 0; row < boardSize; row++) {
     const y = flipped() ? boardSize - 1 - row : row;
     for (let col = 0; col < boardSize; col++) {
@@ -404,80 +496,188 @@ function buildBoard() {
       t.className = `tile ${(x + y) % 2 === 0 ? "dark" : "light"}`;
       t.dataset.x = x; t.dataset.y = y;
       t.addEventListener("click", () => onTileClick(x, y));
-      t.addEventListener("contextmenu", (e) => { e.preventDefault(); deselect(); render(); });
+      t.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (selected != null) { selected = null; renderSelection(); updateStats(); }
+      });
       boardEl.appendChild(t);
+      tiles.push(t);
     }
   }
   // Coordinate labels: files along the bottom grid row, ranks on the left.
   for (let col = 0; col < boardSize; col++) {
     const x = flipped() ? col : boardSize - 1 - col;
-    const el = boardEl.children[(boardSize - 1) * boardSize + col];
     const lab = document.createElement("span");
     lab.className = "tile file-label"; lab.textContent = String.fromCharCode(97 + x);
-    el.appendChild(lab);
+    tiles[(boardSize - 1) * boardSize + col].appendChild(lab);
   }
   for (let row = 0; row < boardSize; row++) {
     const y = flipped() ? boardSize - 1 - row : row;
-    const el = boardEl.children[row * boardSize];
     const lab = document.createElement("span");
     lab.className = "tile rank-label"; lab.textContent = y + 1;
-    el.appendChild(lab);
+    tiles[row * boardSize].appendChild(lab);
   }
 }
 
-function render() {
-  if (!state) return;
-  const who = (myOwner || "spectator") + boardSize;
-  if (boardEl.children.length !== boardSize * boardSize || builtFor !== who) {
-    buildBoard();
-    builtFor = who;
-  }
-  for (const el of boardEl.querySelectorAll(".piece, .hp")) el.remove();
-  for (const el of boardEl.children) {
-    el.classList.remove("selected", "move-target", "locked");
-  }
+// --------------------------- in-place board sync ----------------------------
+function makePieceEl(u) {
+  const el = document.createElement("div");
+  el.className = "piece";
+  el.innerHTML = '<div class="body"></div>';
+  return el;
+}
 
+function syncBoard() {
+  const seen = new Set();
   for (const u of Object.values(state.units)) {
-    const el = tileEl(u.pos);
-    if (!el) continue;
-    if (u.state === "locked") el.classList.add("locked");
-
-    const piece = document.createElement("div");
-    piece.className = `piece ${u.owner} ${u.kind === "artillery" ? "artillery" : ""}`;
-    piece.textContent = u.kind === "artillery" ? "✸" : (u.owner === "white" ? "♙" : "♟");
-    if (pendingGhost[u.id] && u.kind === "pawn") piece.classList.add("ghost");
-    piece.addEventListener("click", (e) => { e.stopPropagation(); onPieceClick(u); });
-    el.appendChild(piece);
-
-    const hp = document.createElement("div");
-    hp.className = "hp";
-    for (let i = 0; i < u.max_hp; i++) {
-      const pip = document.createElement("span");
-      pip.className = "pip" + (i < u.hp ? "" : " off");
-      hp.appendChild(pip);
+    const uid = String(u.id);
+    seen.add(uid);
+    let el = unitEls.get(uid);
+    if (!el) {
+      el = makePieceEl(u);
+      unitEls.set(uid, el);
+      hpSig.set(uid, "");
+      boardEl.appendChild(el);
     }
-    el.appendChild(hp);
-
-    if (selected === u.id) el.classList.add("selected");
-    if (selected === u.id && u.kind === "pawn" && u.state !== "locked") {
-      for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]) {
-        const nx = u.pos.x + dx, ny = u.pos.y + dy;
-        if (nx < 0 || ny < 0 || nx >= boardSize || ny >= boardSize) continue;
-        if (state.units && Object.values(state.units).some(v => v.pos.x === nx && v.pos.y === ny)) continue;
-        tileEl({ x: nx, y: ny }).classList.add("move-target");
+    // Position (CSS transition turns changes into a glide).
+    el.style.transform = `translate(${viewCol(u.pos.x) * TILE}px, ${viewRow(u.pos.y) * TILE}px)`;
+    const k = u.pos.x + "," + u.pos.y;
+    el.dataset.k = k;
+    // Owner/kind glyph — rebuilt only when it actually changes.
+    const cls = `piece ${u.owner}${u.kind === "artillery" ? " artillery" : ""}`;
+    if (el.dataset.cls !== cls) {
+      el.dataset.cls = cls;
+      el.className = cls;
+      el.querySelector(".body").textContent =
+        u.kind === "artillery" ? "✸" : (u.owner === "white" ? "♙" : "♟");
+    }
+    // Health pips — rebuilt only on damage/heal.
+    const hs = u.hp + "/" + u.max_hp;
+    if (hpSig.get(uid) !== hs) {
+      hpSig.set(uid, hs);
+      let hp = el.querySelector(".hp");
+      if (!hp) { hp = document.createElement("div"); hp.className = "hp"; el.appendChild(hp); }
+      hp.innerHTML = "";
+      for (let i = 0; i < u.max_hp; i++) {
+        const pip = document.createElement("span");
+        pip.className = "pip" + (i < u.hp ? "" : " off");
+        hp.appendChild(pip);
       }
     }
+    // Melee lock pulse on the tile under the unit.
+    const wantLock = u.state === "locked";
+    if (wantLock !== lockedTiles.has(k)) {
+      const t = tileEl(u.pos);
+      if (t) { t.classList.toggle("locked", wantLock); }
+      if (wantLock) lockedTiles.add(k); else lockedTiles.delete(k);
+    }
+    syncGhost(u);
   }
-  // ghost target markers for pending moves (all clients see the intent)
-  for (const [uid, t] of Object.entries(pendingGhost)) {
-    const u = unitById(uid);
-    if (u && u.pending_move) { const el = tileEl(u.pending_move); if (el && !el.querySelector(".piece")) {
-      const g = document.createElement("div"); g.className = "piece " + u.owner + " ghost";
-      g.textContent = u.owner === "white" ? "♙" : "♟"; el.appendChild(g);
-    } }
+  // Removed units → death fade on their existing element (keeps position).
+  for (const [uid, el] of [...unitEls]) {
+    if (seen.has(uid)) continue;
+    unitEls.delete(uid);
+    hpSig.delete(uid);
+    killGhost(uid);
+    const k = el.dataset.k;
+    if (k && lockedTiles.has(k)) {
+      const t = tileByKey(k);
+      if (t) t.classList.remove("locked");
+      lockedTiles.delete(k);
+    }
+    el.classList.remove("sel");
+    const body = el.querySelector(".body");
+    if (body) { body.classList.add("dying"); setTimeout(() => el.remove(), 650); }
+    else el.remove();
   }
-  updateStats();
+  // Pointer cursor on tiles holding our own units.
+  const own = new Set();
+  for (const u of Object.values(state.units)) {
+    if (isMine(u.owner)) own.add(u.pos.x + "," + u.pos.y);
+  }
+  for (const k of [...ownTiles]) {
+    if (!own.has(k)) { const t = tileByKey(k); if (t) t.classList.remove("own"); ownTiles.delete(k); }
+  }
+  for (const k of own) {
+    if (!ownTiles.has(k)) { const t = tileByKey(k); if (t) t.classList.add("own"); ownTiles.add(k); }
+  }
 }
+
+function syncGhost(u) {
+  const uid = String(u.id);
+  const target = (u.kind === "pawn" && u.state === "moving" && u.pending_move) ? u.pending_move : null;
+  if (!target) { killGhost(uid); return; }
+  let g = ghostEls.get(uid);
+  if (!g) {
+    g = document.createElement("div");
+    g.className = `piece ghost ${u.owner}`;
+    g.innerHTML = `<div class="body">${u.owner === "white" ? "♙" : "♟"}</div>`;
+    boardEl.appendChild(g);
+    ghostEls.set(uid, g);
+  }
+  g.style.transform = `translate(${viewCol(target.x) * TILE}px, ${viewRow(target.y) * TILE}px)`;
+}
+function killGhost(uid) {
+  const g = ghostEls.get(uid);
+  if (g) { g.remove(); ghostEls.delete(uid); }
+}
+
+// ------------------------------ selection -----------------------------------
+function renderSelection() {
+  for (const t of markedTiles) t.classList.remove("selected", "move-target");
+  markedTiles = [];
+  for (const [, el] of unitEls) el.classList.remove("sel");
+  if (!state || selected == null) return;
+  const sel = unitById(selected);
+  if (!sel || sel.owner !== myOwner || state.status !== "active") return;
+  const t = tileEl(sel.pos);
+  if (t) { t.classList.add("selected"); markedTiles.push(t); }
+  const pel = unitEls.get(String(sel.id));
+  if (pel) pel.classList.add("sel");
+  if (sel.kind === "pawn" && sel.state !== "locked") {
+    for (const [dx, dy] of KING_DIRS) {
+      const nx = sel.pos.x + dx, ny = sel.pos.y + dy;
+      if (nx < 0 || ny < 0 || nx >= boardSize || ny >= boardSize) continue;
+      if (unitAt(nx, ny)) continue;
+      const tt = tileEl({ x: nx, y: ny });
+      if (tt) { tt.classList.add("move-target"); markedTiles.push(tt); }
+    }
+  }
+}
+
+// -------------------------------- input -------------------------------------
+function onTileClick(x, y) {
+  if (!state) return;
+  if (state.status === "lobby") { log("waiting for the second player — match has not started", "ev-info"); return; }
+  if (state.status !== "active") return;
+  const u = unitAt(x, y);
+  if (u) {
+    if (isMine(u.owner)) {
+      // Click own unit: select (or toggle off if already selected).
+      selected = (selected === u.id) ? null : u.id;
+      if (selected != null) send({ type: "select", unit_id: u.id });
+      renderSelection(); updateStats();
+    } else if (selected != null) {
+      log("enemy unit — step next to it and melee locks in automatically", "ev-info");
+    }
+    return;
+  }
+  if (selected != null) {
+    const sel = unitById(selected);
+    if (!sel) { selected = null; renderSelection(); return; }
+    if (sel.kind !== "pawn") { log("artillery is stationary — it fires on its own", "ev-info"); return; }
+    send({ type: "move", unit_id: selected, target: { x, y } });
+  }
+}
+
+function send(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+  else log("not connected — command dropped", "ev-combat");
+}
+
+$("upgradeBtn").addEventListener("click", () => {
+  if (selected != null) send({ type: "upgrade", unit_id: selected, artillery_type: "cannon" });
+});
 
 function updateStats() {
   if (!state) { statsEl.textContent = "not connected"; return; }
@@ -490,37 +690,13 @@ function updateStats() {
     `tick   <b>${state.tick}</b><br>` +
     `units  <b>white ${white} · black ${black}</b>`;
   const sel = selected != null ? unitById(selected) : null;
-  $("upgradeBtn").disabled = !(sel && sel.kind === "pawn" && sel.owner === myOwner && sel.state === "idle" && state.status === "active");
+  $("upgradeBtn").disabled = !(sel && sel.kind === "pawn" && isMine(sel.owner) &&
+                               sel.state === "idle" && !sel.pending_move && state.status === "active");
 }
-
-// -------------------------------- input ------------------------------------
-function onPieceClick(u) {
-  if (u.owner === myOwner && state.status === "active") {
-    selected = u.id;
-    send({ type: "select", unit_id: u.id });
-  }
-  render();
-}
-function onTileClick(x, y) {
-  const clicked = Object.values(state?.units || {}).find(u => u.pos.x === x && u.pos.y === y);
-  if (clicked) { onPieceClick(clicked); return; }
-  if (selected != null) {
-    send({ type: "move", unit_id: selected, target: { x, y } });
-    render();
-  }
-}
-function deselect() { selected = null; }
-
-function send(obj) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
-  else log("not connected — command dropped", "ev-combat");
-}
-
-$("upgradeBtn").addEventListener("click", () => {
-  if (selected != null) send({ type: "upgrade", unit_id: selected, artillery_type: "cannon" });
-});
 
 function showVictory(ev) {
+  selected = null;
+  renderSelection();
   const v = $("victory");
   const won = ev.winner && ev.winner === myOwner;
   const drew = !ev.winner;
@@ -537,6 +713,7 @@ for (let i = 0; i < sessionStorage.length; i++) {
   const k = sessionStorage.key(i);
   if (k.startsWith("match_")) { $("matchInput").value = k.slice(6); break; }
 }
+ensureBoard(); // draw the empty board before the first snapshot arrives
 log("ready — create or join a match", "ev-sys");
 </script>
 </body>
