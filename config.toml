@@ -1,0 +1,50 @@
+# haven_server configuration
+# All gameplay tuning lives here — rebalance without recompiling.
+
+[server]
+host = "0.0.0.0"
+port = 8080
+# Maximum number of concurrently live matches (memory guard).
+max_matches = 64
+
+[board]
+# Board is size x size tiles.
+size = 8
+# How many pawn rows each side starts with (1 => classic chess pawn placement).
+pawn_row_depth = 1
+
+[simulation]
+# Ticks per second for the fixed-timestep simulation loop.
+tick_rate = 10
+
+# Chance per second that a queued move resolves. The per-tick probability is
+# computed as 1 - (1 - p)^(1/tick_rate): 30%/s at 10 Hz ≈ 3.5% per tick.
+move_probability_per_second = 0.30
+
+# Pawn step range in tiles (Chebyshev distance); 1 = one square, any of 8 directions.
+pawn_move_range = 1
+
+# Unit health. With melee_damage = 1 a unit dies on the second hit.
+unit_hp = 2
+
+# Melee: adjacent enemies lock in place and deal damage every cooldown.
+melee_damage = 1
+melee_cooldown_secs = 2.0
+
+# Artillery: stationary units firing straight-line shots (orthogonal only).
+artillery_range = 8
+artillery_damage = 1
+artillery_cooldown_secs = 3.0
+
+# Match hard timeout. On timeout the side with more units alive wins; equal counts draw.
+match_timeout_secs = 300.0
+
+# Broadcast mode: "snapshot" (full state every tick — MVP default, robust)
+# or "delta" (only changed units every tick).
+broadcast_mode = "snapshot"
+
+[lifecycle]
+# If a lobby match stays unstarted this long, it is garbage collected.
+lobby_ttl_secs = 600.0
+# Finished matches are removed this long after they end.
+finished_ttl_secs = 300.0
