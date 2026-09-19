@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>haven_server — RTS Chess</title>
+<style>
+  :root {
+    --wood-light: #f0d9b5;
+    --wood-dark: #b58863;
+    --ink: #2b241c;
+    --panel: #faf6ee;
+    --accent: #2e9e5b;
+    --danger: #d23c3c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Georgia, 'Times New Roman', serif;
+    background: #efe8db; color: var(--ink);
+    display: flex; min-height: 100vh; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 18px; background: #3a3129; color: #f3ede2;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: normal; letter-spacing: 0.5px; }
+  header .badge {
+    font-family: monospace; font-size: 12px; padding: 3px 8px; border-radius: 4px;
+    background: #5a4e41; color: #ffe9c2;
+  }
+  header .side-white { background: #e8e2d5; color: #3a3129; }
+  header .side-black { background: #14100c; color: #e8e2d5; }
+  header input {
+    font-family: monospace; font-size: 13px; padding: 5px 8px; border-radius: 4px;
+    border: 1px solid #6b5d4e; background: #2c2620; color: #f3ede2; width: 180px;
+  }
+  button {
+    font-family: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer;
+    border-radius: 4px; border: 1px solid #6b5d4e; background: #f3ede2; color: #3a3129;
+  }
+  button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  main { display: flex; flex: 1; gap: 18px; padding: 18px; flex-wrap: wrap; }
+
+  #boardwrap { flex: 0 0 auto; position: relative; }
+  #board {
+    display: grid; grid-template-columns: repeat(8, 64px); grid-template-rows: repeat(8, 64px);
+    border: 6px solid #5a4632; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    user-select: none;
+  }
+  .tile { position: relative; display: flex; align-items: center; justify-content: center; }
+  .tile.light { background: var(--wood-light); }
+  .tile.dark  { background: var(--wood-dark); }
+  .tile.file-label, .tile.rank-label {
+    position: absolute; font-size: 10px; font-family: monospace; opacity: 0.55;
+  }
+  .tile.file-label { bottom: 2px; right: 4px; }
+  .tile.rank-label { top: 2px; left: 4px; }
+  .piece {
+    font-size: 44px; line-height: 1; cursor: pointer; z-index: 2;
+    transition: transform 0.12s ease;
+  }
+  .piece.white { color: #ffffff; text-shadow: 0 0 2px #2b241c, 0 1px 1px #2b241c, -1px 0 0 #2b241c, 1px 0 0 #2b241c; }
+  .piece.black { color: #1c1712; text-shadow: 0 0 2px #f3ede2; }
+  .piece.artillery { font-size: 34px; }
+  .piece.ghost { opacity: 0.45; }
+  .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
+  .tile.move-target::after {
+    content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(46, 158, 91, 0.55); z-index: 1;
+  }
+  .tile.locked { animation: lockpulse 1s ease-in-out infinite; }
+  @keyframes lockpulse {
+    0%, 100% { box-shadow: inset 0 0 0 2px rgba(210, 60, 60, 0.35); }
+    50% { box-shadow: inset 0 0 0 5px rgba(210, 60, 60, 0.75); }
+  }
+  .hp {
+    position: absolute; bottom: 3px; display: flex; gap: 2px; z-index: 3;
+  }
+  .hp .pip { width: 7px; height: 7px; border-radius: 50%; background: #43b02a; border: 1px solid rgba(0,0,0,0.4); }
+  .hp .pip.off { background: #7c7268; }
+  .tile.flash-dmg { animation: flash 0.4s ease-out; }
+  @keyframes flash { 0% { background: #ff6b5e; } 100% {} }
+  .tile.flash-fire { animation: fireflash 0.5s ease-out; }
+  @keyframes fireflash { 0% { background: #ffd24d; } 100% {} }
+
+  aside { flex: 1 1 320px; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
+  .panel {
+    background: var(--panel); border: 1px solid #d8cdb9; border-radius: 6px; padding: 12px 14px;
+  }
+  .panel h2 { margin: 0 0 8px; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; }
+  #stats { font-family: monospace; font-size: 13px; line-height: 1.7; }
+  #upgradeBtn { background: #b58863; color: #fff; border-color: #8a6647; width: 100%; margin-top: 6px; }
+  #log {
+    flex: 1; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px;
+    line-height: 1.55; max-height: 420px; min-height: 200px; white-space: pre-wrap;
+  }
+  #log .ev-move { color: #2b6e46; }
+  #log .ev-combat { color: #a02c2c; }
+  #log .ev-info { color: #57503f; }
+  #log .ev-sys { color: #7a6f5d; font-style: italic; }
+  #victory {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(30, 24, 16, 0.72); border-radius: 4px; z-index: 10;
+  }
+  #victory .card {
+    background: var(--panel); padding: 28px 40px; border-radius: 8px; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  #victory h2 { margin: 0 0 6px; font-size: 24px; }
+  #hint { font-size: 13px; opacity: 0.75; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>haven_server <span style="opacity:.55">RTS Chess</span></h1>
+  <input id="matchInput" placeholder="match id (to join)">
+  <button class="primary" id="createBtn">Create match</button>
+  <button id="joinBtn">Join match</button>
+  <span class="badge" id="wsStatus">disconnected</span>
+  <span class="badge" id="sideBadge">—</span>
+  <span class="badge" id="latency">latency —</span>
+</header>
+
+<main>
+  <div id="boardwrap">
+    <div id="board"></div>
+    <div id="victory"><div class="card"><h2 id="vTitle"></h2><p id="vReason"></p><button onclick="location.reload()">New game</button></div></div>
+  </div>
+  <aside>
+    <div class="panel" id="statsPanel">
+      <h2>Match</h2>
+      <div id="stats">not connected</div>
+      <button id="upgradeBtn" disabled>Upgrade to artillery</button>
+    </div>
+    <div class="panel" style="flex:1; display:flex; flex-direction:column;">
+      <h2>Event log</h2>
+      <div id="log"></div>
+    </div>
+    <div class="panel">
+      <div id="hint">Create a match in this tab (you play white), then open a second tab,
+      paste the match id and join — the match auto-starts. Left click selects a pawn,
+      click a highlighted tile queues a move (it resolves on a probabilistic dice roll),
+      right click cancels.</div>
+    </div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// haven_server web client — a dumb renderer for the authoritative server.
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const boardEl = $("board"), logEl = $("log"), statsEl = $("stats");
+
+let matchId = null;      // current match id
+let playerToken = null;  // token from join (this tab's side)
+let myOwner = null;      // "white" | "black" | null (spectator)
+let ws = null;           // WebSocket
+let state = null;        // last full game state
+let selected = null;     // selected unit id (local)
+let boardSize = 8;
+let reconnectDelay = 500;
+let pingTimer = null;
+const pendingGhost = {}; // unit_id -> target tile (from move_queued events)
+
+// ------------------------------- utilities --------------------------------
+function log(text, cls) {
+  const div = document.createElement("div");
+  div.className = cls || "ev-info";
+  div.textContent = text;
+  logEl.prepend(div);
+  while (logEl.children.length > 200) logEl.lastChild.remove();
+}
+function tileName(t) {
+  return String.fromCharCode(97 + t.x) + (boardSize - t.y);
+}
+function unitById(id) { return state ? state.units[String(id)] : null; }
+
+// ------------------------------ REST helpers -------------------------------
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+async function createMatch() {
+  try {
+    const data = await api("POST", "/match");
+    matchId = data.match_id;
+    $("matchInput").value = matchId;
+    log(`match ${matchId} created — joining as white…`, "ev-sys");
+    await joinCurrent();
+  } catch (e) { log("create failed: " + e.message, "ev-combat"); }
+}
+
+async function joinMatch() {
+  matchId = $("matchInput").value.trim();
+  if (!matchId) { log("enter a match id first", "ev-combat"); return; }
+  await joinCurrent();
+}
+
+async function joinCurrent() {
+  try {
+    // Rejoin with our token if we already have one for this match.
+    const stored = sessionStorage.getItem("token_" + matchId);
+    const data = await api("POST", `/match/${matchId}/join`, stored ? { token: stored } : {});
+    playerToken = data.player_token;
+    myOwner = data.owner;
+    sessionStorage.setItem("token_" + matchId, playerToken);
+    sessionStorage.setItem("match_" + matchId, playerToken);
+    $("sideBadge").textContent = "you: " + myOwner;
+    $("sideBadge").className = "badge side-" + myOwner;
+    log(`joined as ${myOwner}`, "ev-sys");
+    connect();
+  } catch (e) {
+    log("join failed: " + e.message, "ev-combat");
+    if (String(e.message).includes("full")) connect(); // spectate a full match
+  }
+}
+
+// ------------------------------ WebSocket ----------------------------------
+function connect() {
+  if (ws) { ws.onclose = null; ws.close(); }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws/${matchId}` +
+              (playerToken ? `?token=${encodeURIComponent(playerToken)}` : "");
+  ws = new WebSocket(url);
+  $("wsStatus").textContent = "connecting…";
+
+  ws.onopen = () => {
+    $("wsStatus").textContent = "connected";
+    reconnectDelay = 500;
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === 1) {
+        ws._pingSent = performance.now();
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 5000);
+  };
+  ws.onmessage = (m) => handleServer(JSON.parse(m.data));
+  ws.onclose = () => {
+    $("wsStatus").textContent = "disconnected";
+    if (pingTimer) clearInterval(pingTimer);
+    // Reconnect with backoff; server sends a fresh snapshot on reconnect.
+    reconnectDelay = Math.min(reconnectDelay * 2, 8000);
+    log(`connection lost — retrying in ${reconnectDelay / 1000}s`, "ev-sys");
+    setTimeout(connect, reconnectDelay);
+  };
+}
+
+// --------------------------- server message switch -------------------------
+function handleServer(msg) {
+  switch (msg.type) {
+    case "welcome":
+      log(`welcome — match ${msg.match_id} (${msg.status})`, "ev-sys");
+      break;
+    case "state_snapshot":
+      state = msg.state;
+      boardSize = state.board_size;
+      selected = null;
+      render();
+      break;
+    case "state_delta":
+      applyDelta(msg.delta);
+      render();
+      break;
+    case "event":
+      handleEvent(msg.event);
+      break;
+    case "error":
+      if (msg.to && myOwner && msg.to !== myOwner) return; // someone else's error
+      log("error: " + msg.detail, "ev-combat");
+      break;
+    case "pong": {
+      if (ws._pingSent) $("latency").textContent = "latency " + Math.round(performance.now() - ws._pingSent) + " ms";
+      break;
+    }
+  }
+}
+
+function applyDelta(delta) {
+  if (!state) return;
+  state.tick = delta.tick;
+  state.status = delta.status;
+  state.winner = delta.winner;
+  state.end_reason = delta.end_reason;
+  for (const u of delta.updated) state.units[String(u.id)] = u;
+  for (const id of delta.removed) delete state.units[String(id)];
+}
+
+function handleEvent(ev) {
+  switch (ev.type) {
+    case "match_started":
+      log("match started!", "ev-sys");
+      break;
+    case "move_queued":
+      pendingGhost[ev.unit] = ev.to;
+      if (isMine(ev.by)) log(`queued ${tileName(ev.from)} → ${tileName(ev.to)} (rolling dice…)`, "ev-move");
+      break;
+    case "move_resolved":
+      delete pendingGhost[ev.unit];
+      if (isMine(ev.by)) log(`moved ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-move");
+      flashTile(ev.to, "flash-dmg");
+      break;
+    case "move_blocked":
+      delete pendingGhost[ev.unit];
+      if (isMine(ev.by)) log(`move blocked: ${tileName(ev.to)} (${ev.reason})`, "ev-combat");
+      break;
+    case "melee_locked":
+      log(`melee lock! ${tileNameOf(ev.a)} ↔ ${tileNameOf(ev.b)}`, "ev-combat");
+      break;
+    case "melee_hit":
+      flashTile(unitPos(ev.defender), "flash-dmg");
+      break;
+    case "artillery_fired":
+      log(`artillery fired ${tileName(ev.from)} → ${tileName(ev.to)}`, "ev-combat");
+      flashTile(ev.to, "flash-fire");
+      break;
+    case "unit_upgraded":
+      log(`unit upgraded to artillery at ${tileName(ev.at)}`, "ev-info");
+      break;
+    case "unit_died":
+      log(`unit died at ${tileName(ev.at)} (${ev.owner})`, "ev-combat");
+      break;
+    case "match_over": {
+      const w = ev.winner ? ev.winner + " wins" : "draw";
+      log(`match over — ${w} (${ev.reason})`, "ev-sys");
+      showVictory(ev);
+      break;
+    }
+  }
+  updateStats();
+}
+function tileNameOf(id) { const u = unitById(id); return u ? tileName(u.pos) : "?"; }
+function unitPos(id) { const u = unitById(id); return u ? u.pos : null; }
+function isMine(owner) { return myOwner && owner === myOwner; }
+
+function flashTile(tile, cls) {
+  if (!tile) return;
+  const el = tileEl(tile);
+  if (el) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+}
+
+// ------------------------------- rendering ---------------------------------
+function flipY() { return myOwner === "black"; } // black sees its side at bottom
+function viewRow(y) { return flipY() ? boardSize - 1 - y : y; }
+function tileEl(t) {
+  return boardEl.children[viewRow(t.y) * boardSize + t.x];
+}
+
+function buildBoard() {
+  boardEl.style.gridTemplateColumns = `repeat(${boardSize}, 64px)`;
+  boardEl.style.gridTemplateRows = `repeat(${boardSize}, 64px)`;
+  boardEl.innerHTML = "";
+  for (let row = 0; row < boardSize; row++) {
+    const y = flipY() ? boardSize - 1 - row : row;
+    for (let x = 0; x < boardSize; x++) {
+      const t = document.createElement("div");
+      t.className = `tile ${(x + y) % 2 === 0 ? "light" : "dark"}`;
+      t.dataset.x = x; t.dataset.y = y;
+      t.addEventListener("click", () => onTileClick(x, y));
+      t.addEventListener("contextmenu", (e) => { e.preventDefault(); deselect(); render(); });
+      boardEl.appendChild(t);
+    }
+  }
+  // coordinate labels on white's left column & bottom row
+  for (let x = 0; x < boardSize; x++) {
+    const el = boardEl.children[(boardSize - 1) * boardSize + x];
+    const lab = document.createElement("span");
+    lab.className = "tile file-label"; lab.textContent = String.fromCharCode(97 + x);
+    el.appendChild(lab);
+  }
+  for (let y = 0; y < boardSize; y++) {
+    const el = boardEl.children[viewRow(y) * boardSize];
+    const lab = document.createElement("span");
+    lab.className = "tile rank-label"; lab.textContent = boardSize - y;
+    el.appendChild(lab);
+  }
+}
+
+function render() {
+  if (!state) return;
+  if (boardEl.children.length !== boardSize * boardSize) buildBoard();
+  for (const el of boardEl.querySelectorAll(".piece, .hp")) el.remove();
+  for (const el of boardEl.children) {
+    el.classList.remove("selected", "move-target", "locked");
+  }
+
+  for (const u of Object.values(state.units)) {
+    const el = tileEl(u.pos);
+    if (!el) continue;
+    if (u.state === "locked") el.classList.add("locked");
+
+    const piece = document.createElement("div");
+    piece.className = `piece ${u.owner} ${u.kind === "artillery" ? "artillery" : ""}`;
+    piece.textContent = u.kind === "artillery" ? "✸" : (u.owner === "white" ? "♙" : "♟");
+    if (pendingGhost[u.id] && u.kind === "pawn") piece.classList.add("ghost");
+    piece.addEventListener("click", (e) => { e.stopPropagation(); onPieceClick(u); });
+    el.appendChild(piece);
+
+    const hp = document.createElement("div");
+    hp.className = "hp";
+    for (let i = 0; i < u.max_hp; i++) {
+      const pip = document.createElement("span");
+      pip.className = "pip" + (i < u.hp ? "" : " off");
+      hp.appendChild(pip);
+    }
+    el.appendChild(hp);
+
+    if (selected === u.id) el.classList.add("selected");
+    if (selected === u.id && u.state !== "locked") {
+      for (const [dx, dy] of [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+        const nx = u.pos.x + dx, ny = u.pos.y + dy;
+        if (nx < 0 || ny < 0 || nx >= boardSize || ny >= boardSize) continue;
+        if (state.units && Object.values(state.units).some(v => v.pos.x === nx && v.pos.y === ny)) continue;
+        tileEl({ x: nx, y: ny }).classList.add("move-target");
+      }
+    }
+  }
+  // ghost target markers for pending moves (all clients see the intent)
+  for (const [uid, t] of Object.entries(pendingGhost)) {
+    const u = unitById(uid);
+    if (u && u.pending_move) { const el = tileEl(u.pending_move); if (el && !el.querySelector(".piece")) {
+      const g = document.createElement("div"); g.className = "piece " + u.owner + " ghost";
+      g.textContent = u.owner === "white" ? "♙" : "♟"; el.appendChild(g);
+    } }
+  }
+  updateStats();
+}
+
+function updateStats() {
+  if (!state) { statsEl.textContent = "not connected"; return; }
+  const white = Object.values(state.units).filter(u => u.owner === "white").length;
+  const black = Object.values(state.units).filter(u => u.owner === "black").length;
+  const status = state.status + (state.winner ? ` — ${state.winner} wins` : "");
+  statsEl.innerHTML =
+    `match  <b>${matchId ?? "—"}</b><br>` +
+    `status <b>${status}</b><br>` +
+    `tick   <b>${state.tick}</b><br>` +
+    `units  <b>white ${white} · black ${black}</b>`;
+  const sel = selected != null ? unitById(selected) : null;
+  $("upgradeBtn").disabled = !(sel && sel.kind === "pawn" && sel.owner === myOwner && sel.state === "idle" && state.status === "active");
+}
+
+// -------------------------------- input ------------------------------------
+function onPieceClick(u) {
+  if (u.owner === myOwner && state.status === "active") {
+    selected = u.id;
+    send({ type: "select", unit_id: u.id });
+  }
+  render();
+}
+function onTileClick(x, y) {
+  const clicked = Object.values(state?.units || {}).find(u => u.pos.x === x && u.pos.y === y);
+  if (clicked) { onPieceClick(clicked); return; }
+  if (selected != null) {
+    send({ type: "move", unit_id: selected, target: { x, y } });
+    render();
+  }
+}
+function deselect() { selected = null; }
+
+function send(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+  else log("not connected — command dropped", "ev-combat");
+}
+
+$("upgradeBtn").addEventListener("click", () => {
+  if (selected != null) send({ type: "upgrade", unit_id: selected, artillery_type: "cannon" });
+});
+
+function showVictory(ev) {
+  const v = $("victory");
+  const won = ev.winner && ev.winner === myOwner;
+  const drew = !ev.winner;
+  $("vTitle").textContent = drew ? "Draw" : (won ? "Victory!" : "Defeat");
+  $("vTitle").style.color = drew ? "#57503f" : (won ? "var(--accent)" : "var(--danger)");
+  $("vReason").textContent = ev.reason.replaceAll("_", " ");
+  v.style.display = "flex";
+}
+
+// auto-restore a match id from this session (second tab flow)
+$("createBtn").addEventListener("click", createMatch);
+$("joinBtn").addEventListener("click", joinMatch);
+for (let i = 0; i < sessionStorage.length; i++) {
+  const k = sessionStorage.key(i);
+  if (k.startsWith("match_")) { $("matchInput").value = k.slice(6); break; }
+}
+log("ready — create or join a match", "ev-sys");
+</script>
+</body>
+</html>
